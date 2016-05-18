@@ -27,7 +27,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] PROGMEM = {
     // @Param: TYPE
     // @DisplayName: GPS type
     // @Description: GPS type
-    // @Values: 0:None,1:AUTO,2:uBlox,3:MTK,4:MTK19,5:NMEA,6:SiRF,7:HIL,8:SwiftNav,9:PX4-UAVCAN
+    // @Values: 0:None,1:AUTO,2:uBlox,3:MTK,4:MTK19,5:NMEA,6:SiRF,7:HIL,8:SwiftNav,9:PX4-UAVCAN,10:NORTH
     // @RebootRequired: True
     AP_GROUPINFO("TYPE",    0, AP_GPS, _type[0], 1),
 
@@ -36,7 +36,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] PROGMEM = {
     // @Param: TYPE2
     // @DisplayName: 2nd GPS type
     // @Description: GPS type of 2nd GPS
-    // @Values: 0:None,1:AUTO,2:uBlox,3:MTK,4:MTK19,5:NMEA,6:SiRF,7:HIL,8:SwiftNav,9:PX4-UAVCAN
+    // @Values: 0:None,1:AUTO,2:uBlox,3:MTK,4:MTK19,5:NMEA,6:SiRF,7:HIL,8:SwiftNav,9:PX4-UAVCAN,10:NORTH
     // @RebootRequired: True
     AP_GROUPINFO("TYPE2",   1, AP_GPS, _type[1], 0),
 
@@ -265,6 +265,11 @@ AP_GPS::detect_instance(uint8_t instance)
                  AP_GPS_MTK::_detect(dstate->mtk_detect_state, data)) {
 			hal.console->print_P(PSTR(" MTK "));
 			new_gps = new AP_GPS_MTK(*this, state[instance], _port[instance]);
+		}
+		else if ((_type[instance] == GPS_TYPE_AUTO || _type[instance] == GPS_TYPE_NORTH) &&
+                 AP_GPS_NORTH::_detect(dstate->north_detect_state, data)) {
+			hal.console->print_P(PSTR(" NORTH "));
+			new_gps = new AP_GPS_NORTH(*this, state[instance], _port[instance]);
 		}
 #if GPS_RTK_AVAILABLE
         else if ((_type[instance] == GPS_TYPE_AUTO || _type[instance] == GPS_TYPE_SBP) &&

@@ -1,0 +1,607 @@
+// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
+/*
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+//
+// NORTH parser, adapted by Michael Smith from TinyGPS v9:
+//
+// TinyGPS - a small GPS library for Arduino providing basic NORTH parsing
+// Copyright (C) 2008-9 Mikal Hart
+// All rights reserved.
+//
+
+/// @file	AP_GPS_NORTH.cpp
+/// @brief	NORTH protocol parser
+///
+/// This is a lightweight NORTH parser, derived originally from the
+/// TinyGPS parser by Mikal Hart.
+///
+
+#include <AP_Common/AP_Common.h>
+
+#include <AP_Progmem/AP_Progmem.h>
+#include <ctype.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#include "AP_GPS_NORTH.h"
+
+extern const AP_HAL::HAL& hal;
+
+// optionally log all NORTH data for debug purposes
+// #define NORTH_LOG_PATH "NORTH.log"
+
+#ifdef NORTH_LOG_PATH
+#include <stdio.h>
+#endif
+
+// SiRF init messages //////////////////////////////////////////////////////////
+//
+// Note that we will only see a SiRF in NMEA mode if we are explicitly configured
+// for NMEA.  GPS_AUTO will try to set any SiRF unit to binary mode as part of
+// the autodetection process.
+//
+#define SIRF_INIT_MSG \
+        "$PSRF103,0,0,1,1*25\r\n"   /* GGA @ 1Hz */ \
+        "$PSRF103,1,0,0,1*25\r\n"   /* GLL off */   \
+        "$PSRF103,2,0,0,1*26\r\n"   /* GSA off */   \
+        "$PSRF103,3,0,0,1*27\r\n"   /* GSV off */   \
+        "$PSRF103,4,0,1,1*20\r\n"   /* RMC off */   \
+        "$PSRF103,5,0,1,1*20\r\n"   /* VTG @ 1Hz */ \
+        "$PSRF103,6,0,0,1*22\r\n"   /* MSS off */   \
+        "$PSRF103,8,0,0,1*2C\r\n"   /* ZDA off */   \
+        "$PSRF151,1*3F\r\n"         /* WAAS on (not always supported) */ \
+        "$PSRF106,21*0F\r\n"        /* datum = WGS84 */
+
+// MediaTek init messages //////////////////////////////////////////////////////
+//
+// Note that we may see a MediaTek in NMEA mode if we are connected to a non-DIYDrones
+// MediaTek-based GPS.
+//
+#define MTK_INIT_MSG \
+    "$PMTK314,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n" /* RMC, GGA & VTG once every fix */ \
+    "$PMTK330,0*2E\r\n"                                 /* datum = WGS84 */ \
+    "$PMTK313,1*2E\r\n"                                 /* SBAS on */ \
+    "$PMTK301,2*2E\r\n"                                 /* use SBAS data for DGPS */
+
+// ublox init messages /////////////////////////////////////////////////////////
+//
+// Note that we will only see a ublox in NMEA mode if we are explicitly configured
+// for NMEA.  GPS_AUTO will try to set any ublox unit to binary mode as part of
+// the autodetection process.
+//
+// We don't attempt to send $PUBX,41 as the unit must already be talking NMEA
+// and we don't know the baudrate.
+//
+#define UBLOX_INIT_MSG \
+    "$PUBX,40,gga,0,1,0,0,0,0*7B\r\n"   /* GGA on at one per fix */ \
+    "$PUBX,40,vtg,0,1,0,0,0,0*7F\r\n"   /* VTG on at one per fix */ \
+    "$PUBX,40,rmc,0,0,0,0,0,0*67\r\n"   /* RMC off (XXX suppress other message types?) */
+
+const prog_char AP_GPS_NORTH::_initialisation_blob[] PROGMEM = SIRF_INIT_MSG MTK_INIT_MSG UBLOX_INIT_MSG;
+
+// NMEA message identifiers ////////////////////////////////////////////////////
+//
+const char AP_GPS_NORTH::_gprmc_string1[] PROGMEM = "GPRMC";
+const char AP_GPS_NORTH::_gpgga_string1[] PROGMEM = "GPGGA";
+const char AP_GPS_NORTH::_gpvtg_string1[] PROGMEM = "GPVTG";
+
+const char AP_GPS_NORTH::_gprmc_string2[] PROGMEM = "GLRMC";
+const char AP_GPS_NORTH::_gpgga_string2[] PROGMEM = "GLGGA";
+const char AP_GPS_NORTH::_gpvtg_string2[] PROGMEM = "GLVTG";
+
+const char AP_GPS_NORTH::_gprmc_string3[] PROGMEM = "GNRMC";
+const char AP_GPS_NORTH::_gpgga_string3[] PROGMEM = "GNGGA";
+const char AP_GPS_NORTH::_gpvtg_string3[] PROGMEM = "GNVTG";
+
+// Convenience macros //////////////////////////////////////////////////////////
+//
+#define DIGIT_TO_VAL(_x)        (_x - '0')
+#define hexdigit(x) 						((x)>9?'A'+(x):'0'+(x))
+	#define round(x)							((x)>=0?(long)((x)+0.5):(long)((x)-0.5))
+
+AP_GPS_NORTH::AP_GPS_NORTH(AP_GPS &_gps, AP_GPS::GPS_State &_state, AP_HAL::UARTDriver *_port) :
+    AP_GPS_Backend(_gps, _state, _port),
+    _parity(0),
+    _is_checksum_term(false),
+    _sentence_type(0),
+    _term_number(0),
+    _term_offset(0),
+	_gps_status(0),
+    _gps_data_good(false)
+{
+    //gps.send_blob_start(state.instance, _initialisation_blob, sizeof(_initialisation_blob));
+    // this guarantees that _term is always nul terminated
+    memset(_term, 0, sizeof(_term));
+}
+
+bool AP_GPS_NORTH::read(void)
+{
+    int16_t numc;
+    bool parsed = false;
+
+    numc = port->available();
+    while (numc--) {
+        char c = port->read();
+#ifdef NORTH_LOG_PATH
+        static FILE *logf = NULL;
+        if (logf == NULL) {
+            logf = fopen(NORTH_LOG_PATH, "wb");
+        }
+        if (logf != NULL) {
+            ::fwrite(&c, 1, 1, logf);
+        }
+#endif
+        if (_decode(c)) {
+            parsed = true;
+        }
+    }
+    return parsed;
+}
+
+bool AP_GPS_NORTH::_decode(char c)
+{
+    bool valid_sentence = false;
+
+    switch (c) {
+    case ',': // term terminators
+        _parity ^= c;
+        /* no break */
+    case '\r':
+    case '\n':
+    case '*':
+        if (_term_offset < sizeof(_term)) {
+            _term[_term_offset] = 0;
+            valid_sentence = _term_complete();
+        }
+        ++_term_number;
+        _term_offset = 0;
+        _is_checksum_term = c == '*';
+        return valid_sentence;
+
+    case '$': // sentence begin
+        _term_number = _term_offset = 0;
+        _parity = 0;
+        _sentence_type = _GPS_SENTENCE_OTHER;
+        _is_checksum_term = false;
+        _gps_data_good = false;
+        return valid_sentence;
+    }
+
+    // ordinary characters
+    if (_term_offset < sizeof(_term) - 1)
+        _term[_term_offset++] = c;
+    if (!_is_checksum_term)
+        _parity ^= c;
+
+    return valid_sentence;
+}
+
+//
+// internal utilities
+//
+int16_t AP_GPS_NORTH::_from_hex(char a)
+{
+    if (a >= 'A' && a <= 'F')
+        return a - 'A' + 10;
+    else if (a >= 'a' && a <= 'f')
+        return a - 'a' + 10;
+    else
+        return a - '0';
+}
+
+/*uint32_t AP_GPS_NORTH::_parse_decimal_100()
+{
+    char *p = _term;
+    uint32_t ret = 100UL * atol(p);
+    while (isdigit(*p))
+        ++p;
+    if (*p == '.') {
+        if (isdigit(p[1])) {
+            ret += 10 * DIGIT_TO_VAL(p[1]);
+            if (isdigit(p[2]))
+                ret += DIGIT_TO_VAL(p[2]);
+        }
+    }
+    return ret;
+}*/
+
+int32_t AP_GPS_NORTH::_parse_decimal_100()
+{	
+    char *q, *p = _term;
+		float frac = 0;
+		int sign = ((*p == '-')? -1: 1);
+    int32_t ret = 100L * atol(p);
+    while (isdigit(*p) || *p == '-')
+        ++p;
+    
+    // convert fractional part
+    if (*p == '.') {
+        q = p + 1;
+        float frac_scale = 0.1f;
+        while (*q && isdigit(*q)) {
+            frac += DIGIT_TO_VAL(*q) * frac_scale;
+            q++;
+            frac_scale *= 0.1f;
+        }
+    }
+    return ret+sign*round(frac*100L);
+}
+
+/*
+  parse a NMEA latitude/longitude degree value. The result is in degrees*1e7
+ */
+uint32_t AP_GPS_NORTH::_parse_degrees()
+{
+    char *p, *q;
+    uint8_t deg = 0, min = 0;
+    float frac_min = 0;
+    int32_t ret = 0;
+
+    // scan for decimal point or end of field
+    for (p = _term; *p && isdigit(*p); p++)
+        ;
+    q = _term;
+
+    // convert degrees
+    while ((p - q) > 2 && *q) {
+        if (deg)
+            deg *= 10;
+        deg += DIGIT_TO_VAL(*q++);
+    }
+
+    // convert minutes
+    while (p > q && *q) {
+        if (min)
+            min *= 10;
+        min += DIGIT_TO_VAL(*q++);
+    }
+
+    // convert fractional minutes
+    if (*p == '.') {
+        q = p + 1;
+        float frac_scale = 0.1f;
+        while (*q && isdigit(*q)) {
+            frac_min += DIGIT_TO_VAL(*q) * frac_scale;
+            q++;
+            frac_scale *= 0.1f;
+        }
+    }
+    ret = (deg * (int32_t)10000000UL);
+    ret += (min * (int32_t)10000000UL / 60);
+    ret += (int32_t) (frac_min * (1.0e7f / 60.0f));
+    return ret;
+}
+
+/*
+  see if we have a new set of NMEA messages
+ */
+bool AP_GPS_NORTH::_have_new_message()
+{
+    if (_last_GPRMC_ms == 0 ||
+        _last_GPGGA_ms == 0) {
+        return false;
+    }
+    uint32_t now = hal.scheduler->millis();
+    if (now - _last_GPRMC_ms > 150 ||
+        now - _last_GPGGA_ms > 150) {
+        return false;
+    }
+    if (_last_GPVTG_ms != 0 &&
+        now - _last_GPVTG_ms > 150) {
+        return false;
+    }
+    // prevent these messages being used again
+    if (_last_GPVTG_ms != 0) {
+        _last_GPVTG_ms = 1;
+    }
+    _last_GPGGA_ms = 1;
+    _last_GPRMC_ms = 1;
+    return true;
+}
+
+// Suavizado por media movil para reducir vibraciones navegacion
+//#define SMOOTH_MOVING_AVERAGE 1
+#define SIZE_MEDIA_MOVIL 20
+//#define SMOOTH_EXP_AVERAGE 1
+
+#ifdef SMOOTH_EXP_AVERAGE
+static const double alpha = 0.0390;
+
+static double EMAX(double sample)
+{
+	static double cur = 0;
+	cur = (sample*alpha) + ((1-alpha)*cur);
+	return cur;
+}
+
+static double EMAY(double sample)
+{
+	static double cur = 0;
+	cur = (sample*alpha) + ((1-alpha)*cur);
+	return cur;
+}
+
+static double EMAZ(double sample)
+{
+	static double cur = 0;
+	cur = (sample*alpha) + ((1-alpha)*cur);
+	return cur;
+}
+#endif
+
+// Processes a just-completed term
+// Returns true if new sentence has just passed checksum test and is validated
+bool AP_GPS_NORTH::_term_complete()
+{
+    // handle the last term in a message
+    if (_is_checksum_term) {
+        uint8_t checksum = 16 * _from_hex(_term[0]) + _from_hex(_term[1]);
+        if (checksum == _parity) {
+            if (_gps_data_good) {
+                switch (_sentence_type) {
+                case _GPS_SENTENCE_GPRMC:
+                    //time                        = _new_time;
+                    //date                        = _new_date;
+                    state.location.lat     = _new_latitude;
+                    state.location.lng     = _new_longitude;
+                    state.ground_speed     = _new_speed*0.01f;
+                    //state.ground_course_cd = wrap_360_cd(_new_course);
+                    state.ground_course_cd = _new_course;
+                    make_gps_time(_new_date, _new_time * 10);
+                    state.last_gps_time_ms = hal.scheduler->millis();
+                    // To-Do: add support for proper reporting of 2D and 3D fix
+                    if (_gps_status == 4) { // 4 means RTK_FIX
+                        state.status        = AP_GPS::GPS_OK_FIX_3D_RTK;
+                    } else if (_gps_status == 5) { // 5 means RTK_FLOAT
+                        state.status        = AP_GPS::GPS_OK_FIX_3D_DGPS;
+                    } else {
+                        state.status        = AP_GPS::GPS_OK_FIX_3D;
+                    }
+                 //   if ((_gps_status != 4) && (_gps_status != 5)) {
+                 //   if ((_gps_status != 4)) {
+				//		state.status        = AP_GPS::GPS_OK_FIX_3D;
+				//	} else {
+				//		// 4 means RTK_FIX and 5 means RTK_FLOAT but it anyway better than plain 3D Fix
+				//		state.status        = AP_GPS::GPS_OK_FIX_3D_RTK;
+				//	}
+                    fill_3d_velocity();
+                    break;
+                case _GPS_SENTENCE_GPGGA:
+                    state.location.alt  = _new_altitude;
+                    state.location.lat  = _new_latitude;
+                    state.location.lng  = _new_longitude;
+                    state.num_sats      = _new_satellite_count;
+                    state.hdop          = _new_hdop;
+                    // To-Do: add support for proper reporting of 2D and 3D fix
+                    if (_gps_status == 4) { // 4 means RTK_FIX
+                        state.status        = AP_GPS::GPS_OK_FIX_3D_RTK;
+                    } else if (_gps_status == 5) { // 5 means RTK_FLOAT
+                        state.status        = AP_GPS::GPS_OK_FIX_3D_DGPS;
+                    } else {
+                        state.status        = AP_GPS::GPS_OK_FIX_3D;
+                    }
+                    //if ((_gps_status != 4) && (_gps_status != 5)) {
+
+//                    if ((_gps_status != 4)) {
+//					    state.status        = AP_GPS::GPS_OK_FIX_3D;
+//					} else {
+//						// 4 means RTK_FIX and 5 means RTK_FLOAT but it anyway better than plain 3D Fix
+//						state.status        = AP_GPS::GPS_OK_FIX_3D_RTK;
+//					}
+                    break;
+                case _GPS_SENTENCE_GPVTG:
+                    state.ground_speed     = _new_speed*0.01f;
+                    //state.ground_course_cd = wrap_360_cd(_new_course);
+                    state.ground_course_cd = _new_course;
+                    // VTG has no fix indicator, can't change fix status
+                    break;
+                }
+            } else {
+                switch (_sentence_type) {
+                case _GPS_SENTENCE_GPRMC:
+                case _GPS_SENTENCE_GPGGA:
+                    // Only these sentences give us information about
+                    // fix status.
+                    state.status = AP_GPS::NO_FIX;
+					_gps_status = 0;
+                }
+            }
+            // see if we got a good message
+            return _have_new_message();
+        }
+        // we got a bad message, ignore it
+        return false;
+    }
+
+    // the first term determines the sentence type
+    if (_term_number == 0) {
+        if (!strcmp_P(_term, _gprmc_string1) || !strcmp_P(_term, _gprmc_string2) || !strcmp_P(_term, _gprmc_string3)) {
+            _sentence_type = _GPS_SENTENCE_GPRMC;
+            _last_GPRMC_ms = hal.scheduler->millis();
+        } else if (!strcmp_P(_term, _gpgga_string1) || !strcmp_P(_term, _gpgga_string2) || !strcmp_P(_term, _gpgga_string3)) {
+            _sentence_type = _GPS_SENTENCE_GPGGA;
+            _last_GPGGA_ms = hal.scheduler->millis();
+        } else if (!strcmp_P(_term, _gpvtg_string1) || !strcmp_P(_term, _gpvtg_string2) || !strcmp_P(_term, _gpvtg_string3)) {
+            _sentence_type = _GPS_SENTENCE_GPVTG;
+            // VTG may not contain a data qualifier, presume the solution is good
+            // unless it tells us otherwise.
+            _last_GPVTG_ms = hal.scheduler->millis();
+            _gps_data_good = true;
+        } else {
+            _sentence_type = _GPS_SENTENCE_OTHER;
+        }
+        return false;
+    }
+
+    // 32 = RMC, 64 = GGA, 96 = VTG
+    if (_sentence_type != _GPS_SENTENCE_OTHER && _term[0]) {
+        switch (_sentence_type + _term_number) {
+        // operational status
+        //
+        case _GPS_SENTENCE_GPRMC + 2: // validity (RMC)
+            _gps_data_good = _term[0] == 'A';
+            break;
+        case _GPS_SENTENCE_GPGGA + 6: // Fix data (GGA)
+            _gps_data_good = _term[0] > '0';
+			_gps_status = _term[0]-'0';
+            break;
+        case _GPS_SENTENCE_GPVTG + 9: // validity (VTG) (we may not see this field)
+            _gps_data_good = _term[0] != 'N';
+            break;
+        case _GPS_SENTENCE_GPGGA + 7: // satellite count (GGA)
+            _new_satellite_count = atol(_term);
+            break;
+        case _GPS_SENTENCE_GPGGA + 8: // HDOP (GGA)
+            _new_hdop = _parse_decimal_100();
+            break;
+
+        // time and date
+        //
+        case _GPS_SENTENCE_GPRMC + 1: // Time (RMC)
+        case _GPS_SENTENCE_GPGGA + 1: // Time (GGA)
+            _new_time = _parse_decimal_100();
+            break;
+        case _GPS_SENTENCE_GPRMC + 9: // Date (GPRMC)
+            _new_date = atol(_term);
+            break;
+
+        // location
+        //
+        case _GPS_SENTENCE_GPRMC + 3: // Latitude
+        case _GPS_SENTENCE_GPGGA + 2:
+		{
+            _new_latitude = _parse_degrees();
+#ifdef SMOOTH_MOVING_AVERAGE
+			static double mediamovilLat[SIZE_MEDIA_MOVIL] = {0};
+			double totalLat = _new_latitude;
+			for(unsigned char i=0;i<(SIZE_MEDIA_MOVIL-1);i++)
+			{
+				mediamovilLat[i] = mediamovilLat[i+1];
+				totalLat += mediamovilLat[i];
+			}
+			mediamovilLat[SIZE_MEDIA_MOVIL-1] = _new_latitude;
+			totalLat = totalLat / (double)SIZE_MEDIA_MOVIL;
+			_new_latitude = totalLat;
+#elif SMOOTH_EXP_AVERAGE
+			_new_latitude = EMAY(_new_latitude);
+#endif
+            break;
+		}
+        case _GPS_SENTENCE_GPRMC + 4: // N/S
+        case _GPS_SENTENCE_GPGGA + 3:
+            if (_term[0] == 'S')
+                _new_latitude = -_new_latitude;
+            break;
+        case _GPS_SENTENCE_GPRMC + 5: // Longitude
+        case _GPS_SENTENCE_GPGGA + 4:
+		{
+            _new_longitude = _parse_degrees();
+#ifdef SMOOTH_MOVING_AVERAGE
+			static double mediamovilLon[SIZE_MEDIA_MOVIL] = {0};
+			double totalLon = _new_longitude;
+			for(unsigned char i=0;i<(SIZE_MEDIA_MOVIL-1);i++)
+			{
+				mediamovilLon[i] = mediamovilLon[i+1];
+				totalLon += mediamovilLon[i];
+			}
+			mediamovilLon[SIZE_MEDIA_MOVIL-1] = _new_longitude;
+			totalLon = totalLon / (double)SIZE_MEDIA_MOVIL;
+			_new_longitude = totalLon;
+#elif SMOOTH_EXP_AVERAGE
+			_new_longitude = EMAX(_new_longitude);
+#endif
+            break;
+		}
+        case _GPS_SENTENCE_GPRMC + 6: // E/W
+        case _GPS_SENTENCE_GPGGA + 5:
+            if (_term[0] == 'W')
+                _new_longitude = -_new_longitude;
+            break;
+        case _GPS_SENTENCE_GPGGA + 9: // Altitude (GPGGA)
+		{
+            _new_altitude = _parse_decimal_100();
+#ifdef SMOOTH_MOVING_AVERAGE
+			static double mediamovilAlt[SIZE_MEDIA_MOVIL] = {0};
+			double totalAlt = _new_altitude;
+			for(unsigned char i=0;i<(SIZE_MEDIA_MOVIL-1);i++)
+			{
+				mediamovilAlt[i] = mediamovilAlt[i+1];
+				totalAlt += mediamovilAlt[i];
+			}
+			mediamovilAlt[SIZE_MEDIA_MOVIL-1] = _new_altitude;
+			totalAlt = totalAlt / (double)SIZE_MEDIA_MOVIL;
+			_new_altitude = totalAlt;
+#elif SMOOTH_EXP_AVERAGE
+			_new_altitude = EMAZ(_new_altitude);
+#endif
+            break;
+		}
+
+        // course and speed
+        //
+        case _GPS_SENTENCE_GPRMC + 7: // Speed (GPRMC)
+        case _GPS_SENTENCE_GPVTG + 5: // Speed (VTG)
+            _new_speed = (_parse_decimal_100() * 514) / 1000;       // knots-> m/sec, approximiates * 0.514
+            break;
+        case _GPS_SENTENCE_GPRMC + 8: // Course (GPRMC)
+        case _GPS_SENTENCE_GPVTG + 1: // Course (VTG)
+            _new_course = _parse_decimal_100();
+            break;
+        }
+    }
+
+    return false;
+}
+
+/*
+  detect a NMEA GPS. Adds one byte, and returns true if the stream
+  matches a NMEA string
+ */
+bool
+AP_GPS_NORTH::_detect(struct NORTH_detect_state &state, uint8_t data)
+{
+	switch (state.step) {
+	case 0:
+		state.ck = 0;
+		if ('$' == data) {
+			state.step++;
+		}
+		break;
+	case 1:
+		if ('*' == data) {
+			state.step++;
+		} else {
+			state.ck ^= data;
+		}
+		break;
+	case 2:
+		if (hexdigit(state.ck>>4) == data) {
+			state.step++;
+		} else {
+			state.step = 0;
+		}
+		break;
+	case 3:
+		if (hexdigit(state.ck&0xF) == data) {
+			return true;
+		}
+		state.step = 0;
+		break;
+    }
+    return false;
+}
+
+AP_GPS::GPS_Status highest_supported_status(void) { return AP_GPS::GPS_OK_FIX_3D_RTK; }

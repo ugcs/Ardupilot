@@ -133,6 +133,7 @@ MultiCopter::MultiCopter(const char *home_str, const char *frame_str) :
  */
 void MultiCopter::update(const struct sitl_input &input)
 {
+
     float motor_speed[frame->num_motors];
 
     for (uint8_t i=0; i<frame->num_motors; i++) {
@@ -209,6 +210,7 @@ void MultiCopter::update(const struct sitl_input &input)
 
     // constrain height to the ground
     if (on_ground(position)) {
+        printf("on_ground z at %f, home.alt %f ground_level %f frame_height %f\n", -position.z, home.alt*0.01f, ground_level, frame_height);
         if (!on_ground(old_position)) {
             printf("Hit ground at %f m/s\n", velocity_ef.z);
 
