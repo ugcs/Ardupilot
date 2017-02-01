@@ -2,7 +2,7 @@
 
 #include "ap_version.h"
 
-#define THISFIRMWARE "APM:Copter V3.4.4"
+#define THISFIRMWARE "APM:Copter V3.4.4-DCC"
 #define FIRMWARE_VERSION 3,4,4,FIRMWARE_VERSION_TYPE_OFFICIAL
 
 #ifndef GIT_VERSION

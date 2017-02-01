@@ -454,11 +454,21 @@ AP_GPS::update(void)
             if (i == primary_instance) {
                 continue;
             }
+
+
             if (state[i].status > state[primary_instance].status) {
                 // we have a higher status lock, change GPS
                 primary_instance = i;
                 continue;
             }
+
+
+            if (state[i].vertical_accuracy < state[primary_instance].vertical_accuracy) {
+                // we have a higher status lock, change GPS
+                primary_instance = i;
+                continue;
+            }
+
 
             bool another_gps_has_1_or_more_sats = (state[i].num_sats >= state[primary_instance].num_sats + 1);
 

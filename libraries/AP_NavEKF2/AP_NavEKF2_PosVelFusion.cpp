@@ -6,6 +6,7 @@
 #include "AP_NavEKF2_core.h"
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_Vehicle/AP_Vehicle.h>
+#include <AP_GPS/AP_GPS.h>
 
 #include <stdio.h>
 
@@ -687,7 +688,8 @@ void NavEKF2_core::selectHeightForFusion()
                 activeHgtSource = HGT_SOURCE_RNG;
             }
         }
-    } else if ((frontend->_altSource == 2) && ((imuSampleTime_ms - lastTimeGpsReceived_ms) < 500) && validOrigin && gpsAccuracyGood) {
+    } else if ((frontend->_altSource == 2) && ((imuSampleTime_ms - lastTimeGpsReceived_ms) < 500) && validOrigin && gpsAccuracyGood &&
+               _ahrs->get_gps().status() == AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK) {
         activeHgtSource = HGT_SOURCE_GPS;
     } else {
         activeHgtSource = HGT_SOURCE_BARO;
