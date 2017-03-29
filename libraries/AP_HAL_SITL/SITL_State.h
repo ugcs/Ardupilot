@@ -32,6 +32,12 @@ class HALSITL::SITL_State {
     friend class HALSITL::Util;
     friend class HALSITL::GPIO;
 public:
+//    SITL_State() :
+//        next_gps_index(0),
+//        next_gps2_index(0)
+//    {}
+
+
     void init(int argc, char * const argv[]);
 
     enum vehicle_type {
@@ -102,6 +108,7 @@ private:
 
 #define MAX_GPS_DELAY 100
     gps_data _gps_data[MAX_GPS_DELAY];
+    gps_data _gps2_data[MAX_GPS_DELAY];
 
     bool _gps_has_basestation_position;
     gps_data _gps_basestation_data;
@@ -121,6 +128,8 @@ private:
     void _nova_send_message(uint8_t *header, uint8_t headerlength, uint8_t *payload, uint8_t payloadlen);
     uint32_t CRC32Value(uint32_t icrc);
     uint32_t CalculateBlockCRC32(uint32_t length, uint8_t *buffer, uint32_t crc);
+
+    bool _update_gps(struct  gps_data d, SITL::SITL::GPSType type, gps_data* data_list, const Vector3f& glitch_offsets, bool have_lock, int fd, uint8_t *index);
 
     void _update_gps(double latitude, double longitude, float altitude,
                      double speedN, double speedE, double speedD, bool have_lock);

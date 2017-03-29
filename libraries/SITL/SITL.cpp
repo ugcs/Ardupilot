@@ -42,7 +42,7 @@ const AP_Param::GroupInfo SITL::var_info[] = {
     AP_GROUPINFO("WIND_SPD",   9, SITL,  wind_speed,  0),
     AP_GROUPINFO("WIND_DIR",  10, SITL,  wind_direction,  180),
     AP_GROUPINFO("WIND_TURB", 11, SITL,  wind_turbulance,  0),
-    AP_GROUPINFO("GPS_TYPE",  12, SITL,  gps_type,  SITL::GPS_TYPE_UBLOX),
+    AP_GROUPINFO("GPS_TYPE",  12, SITL,  gps_type,  SITL::GPS_TYPE_NOVA),
     AP_GROUPINFO("GPS_BYTELOSS",  13, SITL,  gps_byteloss,  0),
     AP_GROUPINFO("GPS_NUMSATS",   14, SITL,  gps_numsats,   10),
     AP_GROUPINFO("MAG_ERROR",     15, SITL,  mag_error,  0),
@@ -83,6 +83,8 @@ const AP_Param::GroupInfo SITL::var_info[] = {
     AP_GROUPINFO("PIN_MASK",      50, SITL,  pin_mask, 0),
     AP_GROUPINFO("ADSB_TX",       51, SITL,  adsb_tx, 0),
     AP_GROUPINFO("SPEEDUP",       52, SITL,  speedup, -1),
+    AP_GROUPINFO("GPS2_GLTCH",   53, SITL,  gps2_glitch,  0),
+    AP_GROUPINFO("GPS2_TYPE",     54, SITL,  gps2_type,  SITL::GPS_TYPE_UBLOX),
     AP_GROUPEND
 };
 

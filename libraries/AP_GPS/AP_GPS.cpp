@@ -153,6 +153,13 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("RATE_MS2", 15, AP_GPS, _rate_ms[1], 200),
 
+    // @Param: PREFERED
+    // @DisplayName: Index of GPS which is referenced as if autoswitch occures
+    // @Description:
+    // @Values: -1,0,1
+    // @User: Advanced
+    AP_GROUPINFO("PREFERED", 16, AP_GPS, _prefered_gps_index, 0),
+
     AP_GROUPEND
 };
 
@@ -356,7 +363,11 @@ found_gps:
         state[instance].status = NO_FIX;
         drivers[instance] = new_gps;
         timing[instance].last_message_time_ms = now;
-	}
+
+        if (_prefered_gps_index >= 0 && drivers[_prefered_gps_index] != NULL && new_gps->highest_supported_status() > drivers[_prefered_gps_index]->highest_supported_status()) {
+            _prefered_gps_index = instance;
+        }
+    }
 }
 
 AP_GPS::GPS_Status 
@@ -431,6 +442,12 @@ AP_GPS::update_instance(uint8_t instance)
         timing[instance].last_message_time_ms = tnow;
         if (state[instance].status >= GPS_OK_FIX_2D) {
             timing[instance].last_fix_time_ms = tnow;
+
+//            if (instance != _prefered_gps_index) {
+                state[instance].compensated_location.alt = state[instance].location.alt + state[instance].offset.z;
+                state[instance].compensated_location.lat = state[instance].location.lat + state[instance].offset.x;
+                state[instance].compensated_location.lng = state[instance].location.lng + state[instance].offset.y;
+//            }
         }
     }
 }
@@ -443,6 +460,12 @@ AP_GPS::update(void)
 {
     for (uint8_t i=0; i<GPS_MAX_INSTANCES; i++) {
         update_instance(i);
+
+        if (_prefered_gps_index >= 0 && _prefered_gps_index < GPS_MAX_INSTANCES) {
+            state[i].offset.z = state[_prefered_gps_index].location.alt - state[i].location.alt;
+            state[i].offset.x = state[_prefered_gps_index].location.lat - state[i].location.lat;
+            state[i].offset.y = state[_prefered_gps_index].location.lng - state[i].location.lng;
+        }
     }
 
     // work out which GPS is the primary, and how many sensors we have
@@ -458,16 +481,18 @@ AP_GPS::update(void)
 
             if (state[i].status > state[primary_instance].status) {
                 // we have a higher status lock, change GPS
+                GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_INFO, "Switched GPS from %d to %d by status\n", primary_instance, i);
                 primary_instance = i;
                 continue;
             }
 
 
-            if (state[i].vertical_accuracy < state[primary_instance].vertical_accuracy) {
-                // we have a higher status lock, change GPS
-                primary_instance = i;
-                continue;
-            }
+//            if (state[i].vertical_accuracy < state[primary_instance].vertical_accuracy) {
+//                // we have a higher status lock, change GPS
+//                GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_INFO, "Switched GPS from %d to %d by speed accuracy \n", primary_instance, i);
+//                primary_instance = i;
+//                continue;
+//            }
 
 
             bool another_gps_has_1_or_more_sats = (state[i].num_sats >= state[primary_instance].num_sats + 1);

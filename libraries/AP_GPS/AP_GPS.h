@@ -17,6 +17,7 @@
 #include <AP_HAL/AP_HAL.h>
 #include <inttypes.h>
 #include <AP_Common/AP_Common.h>
+#include <AP_Common/Location.h>
 #include <AP_Param/AP_Param.h>
 #include <AP_Math/AP_Math.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
@@ -40,7 +41,7 @@ class AP_GPS
 {
 public:
     // constructor
-	AP_GPS() {
+    AP_GPS() {
 		AP_Param::setup_object_defaults(this, var_info);
     }
 
@@ -112,6 +113,8 @@ public:
         uint32_t time_week_ms;              ///< GPS time (milliseconds from start of GPS week)
         uint16_t time_week;                 ///< GPS week number
         Location location;                  ///< last fix location
+        Location compensated_location;         ///< locations which follows primary location. For smooth movement during gps switches
+        Vector3f offset;
         float ground_speed;                 ///< ground speed in m/sec
         float ground_course;                ///< ground course in degrees
         uint16_t hdop;                      ///< horizontal dilution of precision in cm
@@ -127,6 +130,10 @@ public:
         bool have_vertical_accuracy:1;
         uint32_t last_gps_time_ms;          ///< the system time we got the last GPS timestamp, milliseconds
     };
+
+    Location_Class primary_location;
+    Location_Class secondary_location;
+
 
     // Pass mavlink data to message handlers (for MAV type)
     void handle_msg(const mavlink_message_t *msg);
@@ -157,8 +164,13 @@ public:
 
     // location of last fix
     const Location &location(uint8_t instance) const {
-        return state[instance].location;
+        if (_prefered_gps_index != primary_instance) {
+            return state[instance].compensated_location;
+        } else {
+            return state[instance].location;
+        }
     }
+
     const Location &location() const {
         return location(primary_instance);
     }
@@ -340,7 +352,9 @@ public:
     AP_Int16 _rate_ms[2];
     AP_Int8 _save_config;
     AP_Int8 _auto_config;
-    
+    // instance index for driver which is considered to be the most reliable
+    AP_Int8 _prefered_gps_index;
+
     // handle sending of initialisation strings to the GPS
     void send_blob_start(uint8_t instance, const char *_blob, uint16_t size);
     void send_blob_update(uint8_t instance);
@@ -374,6 +388,7 @@ private:
     GPS_timing timing[GPS_MAX_INSTANCES];
     GPS_State state[GPS_MAX_INSTANCES];
     AP_GPS_Backend *drivers[GPS_MAX_INSTANCES];
+    Location_Class *locations[GPS_MAX_INSTANCES];
     AP_HAL::UARTDriver *_port[GPS_MAX_INSTANCES];
 
     /// primary GPS instance
@@ -384,6 +399,8 @@ private:
 
     // which ports are locked
     uint8_t locked_ports:2;
+
+
 
     // state of auto-detection process, per instance
     struct detect_state {

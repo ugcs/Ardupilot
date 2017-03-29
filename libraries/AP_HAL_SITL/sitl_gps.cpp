@@ -34,6 +34,8 @@ using namespace HALSITL;
 extern const AP_HAL::HAL& hal;
 
 static uint8_t next_gps_index;
+static uint8_t next_gps2_index;
+
 static uint8_t gps_delay;
 
 // state of GPS emulation
@@ -42,6 +44,8 @@ static struct gps_state {
     int gps_fd, client_fd;
     uint32_t last_update; // milliseconds
 } gps_state, gps2_state;
+
+int current_gps_fd;
 
 /*
   hook for reading from the GPS pipe
@@ -104,7 +108,7 @@ int SITL_State::gps2_pipe(void)
 void SITL_State::_gps_write(const uint8_t *p, uint16_t size)
 {
     while (size--) {
-        if (_sitl->gps_byteloss > 0.0f) {
+        if (_sitl->gps_byteloss > 0.0f && current_gps_fd == gps_state.gps_fd) {
             float r = ((((unsigned)random()) % 1000000)) / 1.0e4;
             if (r < _sitl->gps_byteloss) {
                 // lose the byte
@@ -112,17 +116,13 @@ void SITL_State::_gps_write(const uint8_t *p, uint16_t size)
                 continue;
             }
         }
-        if (gps_state.gps_fd != 0) {
-            write(gps_state.gps_fd, p, 1);
-        }
-        if (_sitl->gps2_enable) {
-            if (gps2_state.gps_fd != 0) {
-                write(gps2_state.gps_fd, p, 1);
-            }
+        if (current_gps_fd != 0) {
+            write(current_gps_fd, p, 1);
         }
         p++;
     }
 }
+
 
 /*
   get timeval using simulation time
@@ -268,7 +268,7 @@ void SITL_State::_update_gps_ubx(const struct gps_data *d)
 
     status.time = time_week_ms;
     status.fix_type = d->have_lock?3:0;
-    status.fix_status = d->have_lock?1:0;
+    status.fix_status = d->have_lock?3:0;
     status.differential_status = 0;
     status.res = 0;
     status.time_to_first_fix = 0;
@@ -289,7 +289,7 @@ void SITL_State::_update_gps_ubx(const struct gps_data *d)
 
     memset(&sol, 0, sizeof(sol));
     sol.fix_type = d->have_lock?3:0;
-    sol.fix_status = 221;
+    sol.fix_status = 223;
     sol.satellites = d->have_lock?_sitl->gps_numsats:3;
     sol.time = time_week_ms;
     sol.week = time_week;
@@ -855,7 +855,11 @@ void SITL_State::_update_gps_nova(const struct gps_data *d)
     bestpos.lngsdev=0.2;
     bestpos.hgtsdev=0.2;
     bestpos.solstat=0;
-    bestpos.postype=32;
+
+    if (_sitl->gps_disable)
+        bestpos.postype=16;
+    else
+        bestpos.postype=32;
     
     _nova_send_message((uint8_t*)&header,sizeof(header),(uint8_t*)&bestpos, sizeof(bestpos));
 }
@@ -927,7 +931,6 @@ void SITL_State::_update_gps(double latitude, double longitude, float altitude,
 {
     struct gps_data d;
     char c;
-    Vector3f glitch_offsets = _sitl->gps_glitch;
 
     //Capture current position as basestation location for
     if (!_gps_has_basestation_position) {
@@ -952,6 +955,7 @@ void SITL_State::_update_gps(double latitude, double longitude, float altitude,
     if (gps_state.gps_fd != 0) {
         read(gps_state.gps_fd, &c, 1);
     }
+
     if (gps2_state.gps_fd != 0) {
         read(gps2_state.gps_fd, &c, 1);
     }
@@ -959,9 +963,9 @@ void SITL_State::_update_gps(double latitude, double longitude, float altitude,
     gps_state.last_update = AP_HAL::millis();
     gps2_state.last_update = AP_HAL::millis();
 
-    d.latitude = latitude + glitch_offsets.x;
-    d.longitude = longitude + glitch_offsets.y;
-    d.altitude = altitude + glitch_offsets.z;
+    d.latitude = latitude;
+    d.longitude = longitude;
+    d.altitude = altitude;
 
     if (_sitl->gps_drift_alt > 0) {
         // slow altitude drift
@@ -971,29 +975,44 @@ void SITL_State::_update_gps(double latitude, double longitude, float altitude,
     d.speedN = speedN;
     d.speedE = speedE;
     d.speedD = speedD;
-    d.have_lock = have_lock;
 
-    // add in some GPS lag
-    _gps_data[next_gps_index++] = d;
-    if (next_gps_index >= gps_delay+1) {
-        next_gps_index = 0;
+    _update_gps(d, (SITL::SITL::GPSType)_sitl->gps_type.get(), _gps_data, Vector3f(_sitl->gps_glitch), have_lock, gps_state.gps_fd, &next_gps_index);
+
+    if (_sitl->gps2_enable) {
+        _update_gps(d, (SITL::SITL::GPSType)_sitl->gps2_type.get(), _gps2_data, Vector3f(_sitl->gps2_glitch), true, gps2_state.gps_fd, &next_gps2_index);
     }
 
-    d = _gps_data[next_gps_index];
+}
+
+bool SITL_State::_update_gps(struct  gps_data d, SITL::SITL::GPSType type, gps_data* data_list, const Vector3f& glitch_offsets, bool have_lock, int fd, uint8_t *gps_index_ptr) {
+
+    if (fd == 0)
+        return false;
+    else
+        current_gps_fd = fd;
+
+    d.latitude  +=  glitch_offsets.x;
+    d.longitude += glitch_offsets.y;
+    d.altitude  +=  glitch_offsets.z;
+
+    d.have_lock = have_lock;
+
+    data_list[*gps_index_ptr++] = d;
+    if (*gps_index_ptr >= gps_delay+1) {
+        *gps_index_ptr = 0;
+    }
+
+    d = data_list[*gps_index_ptr];
 
     if (_sitl->gps_delay != gps_delay) {
         // cope with updates to the delay control
         gps_delay = _sitl->gps_delay;
         for (uint8_t i=0; i<gps_delay; i++) {
-            _gps_data[i] = d;
+            data_list[i] = d;
         }
     }
 
-    if (gps_state.gps_fd == 0 && gps2_state.gps_fd == 0) {
-        return;
-    }
-
-    switch ((SITL::SITL::GPSType)_sitl->gps_type.get()) {
+    switch (type) {
     case SITL::SITL::GPS_TYPE_NONE:
         // no GPS attached
         break;
@@ -1021,7 +1040,7 @@ void SITL_State::_update_gps(double latitude, double longitude, float altitude,
     case SITL::SITL::GPS_TYPE_SBP:
         _update_gps_sbp(&d);
         break;
-        
+
     case SITL::SITL::GPS_TYPE_NOVA:
         _update_gps_nova(&d);
         break;
@@ -1031,6 +1050,6 @@ void SITL_State::_update_gps(double latitude, double longitude, float altitude,
         break;
 
     }
+    return true;
 }
-
 #endif
