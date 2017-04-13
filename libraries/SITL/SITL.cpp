@@ -83,8 +83,10 @@ const AP_Param::GroupInfo SITL::var_info[] = {
     AP_GROUPINFO("PIN_MASK",      50, SITL,  pin_mask, 0),
     AP_GROUPINFO("ADSB_TX",       51, SITL,  adsb_tx, 0),
     AP_GROUPINFO("SPEEDUP",       52, SITL,  speedup, -1),
-    AP_GROUPINFO("GPS2_GLTCH",   53, SITL,  gps2_glitch,  0),
+    AP_GROUPINFO("GPS2_GLTCH",    53, SITL,  gps2_glitch,  0),
     AP_GROUPINFO("GPS2_TYPE",     54, SITL,  gps2_type,  SITL::GPS_TYPE_UBLOX),
+    AP_GROUPINFO("GPS2_RND",      55, SITL,  gps2_noise, 0),
+
     AP_GROUPEND
 };
 

@@ -155,10 +155,10 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
 
     // @Param: PREFERED
     // @DisplayName: Index of GPS which is referenced as if autoswitch occures
-    // @Description:
-    // @Values: -1,0,1
+    // @Description: 1 - for first GPS, 2 - for second GPS
+    // @Values: 1, 2
     // @User: Advanced
-    AP_GROUPINFO("PREFERED", 16, AP_GPS, _prefered_gps_index, 0),
+    AP_GROUPINFO("PREFERED", 16, AP_GPS, _referenced_instance, 1),
 
     AP_GROUPEND
 };
@@ -363,10 +363,6 @@ found_gps:
         state[instance].status = NO_FIX;
         drivers[instance] = new_gps;
         timing[instance].last_message_time_ms = now;
-
-        if (_prefered_gps_index >= 0 && drivers[_prefered_gps_index] != NULL && new_gps->highest_supported_status() > drivers[_prefered_gps_index]->highest_supported_status()) {
-            _prefered_gps_index = instance;
-        }
     }
 }
 
@@ -442,12 +438,6 @@ AP_GPS::update_instance(uint8_t instance)
         timing[instance].last_message_time_ms = tnow;
         if (state[instance].status >= GPS_OK_FIX_2D) {
             timing[instance].last_fix_time_ms = tnow;
-
-//            if (instance != _prefered_gps_index) {
-                state[instance].compensated_location.alt = state[instance].location.alt + state[instance].offset.z;
-                state[instance].compensated_location.lat = state[instance].location.lat + state[instance].offset.x;
-                state[instance].compensated_location.lng = state[instance].location.lng + state[instance].offset.y;
-//            }
         }
     }
 }
@@ -459,13 +449,7 @@ void
 AP_GPS::update(void)
 {
     for (uint8_t i=0; i<GPS_MAX_INSTANCES; i++) {
-        update_instance(i);
-
-        if (_prefered_gps_index >= 0 && _prefered_gps_index < GPS_MAX_INSTANCES) {
-            state[i].offset.z = state[_prefered_gps_index].location.alt - state[i].location.alt;
-            state[i].offset.x = state[_prefered_gps_index].location.lat - state[i].location.lat;
-            state[i].offset.y = state[_prefered_gps_index].location.lng - state[i].location.lng;
-        }
+        update_instance(i);        
     }
 
     // work out which GPS is the primary, and how many sensors we have
@@ -516,6 +500,32 @@ AP_GPS::update(void)
         } else {
             primary_instance = 0;
         }
+    }
+
+    for (int i = 0; i < GPS_MAX_INSTANCES; i++) {
+        if (_referenced_instance > 0 && _referenced_instance <= num_instances) {
+            if (i == primary_instance) {
+                if (i == (_referenced_instance - 1)) {
+//                   state[i].offset.alt = 0;
+                   state[i].offset.lat = 0;
+                   state[i].offset.lng = 0;
+                }
+            } else {
+                if (i == (_referenced_instance - 1)) {
+//                    state[i].offset.alt = state[primary_instance].compensated_location.alt - state[i].location.alt;
+                    state[i].offset.lat = state[primary_instance].compensated_location.lat - state[i].location.lat;
+                    state[i].offset.lng = state[primary_instance].compensated_location.lng - state[i].location.lng;
+                } else {
+//                    state[i].offset.alt = state[primary_instance].location.alt - state[i].location.alt;
+                    state[i].offset.lat = state[primary_instance].location.lat - state[i].location.lat;
+                    state[i].offset.lng = state[primary_instance].location.lng - state[i].location.lng;
+                }
+            }
+        }
+
+        state[i].compensated_location.alt = state[i].location.alt;// + state[i].offset.alt;
+        state[i].compensated_location.lat = state[i].location.lat + state[i].offset.lat;
+        state[i].compensated_location.lng = state[i].location.lng + state[i].offset.lng;
     }
 
 	// update notify with gps status. We always base this on the primary_instance
@@ -830,6 +840,5 @@ void AP_GPS::inject_data_all(const uint8_t *data, uint16_t len)
         if ((drivers[i] != NULL) && (_type[i] != GPS_TYPE_NONE)) {
             drivers[i]->inject_data(data, len);
         }
-    }
-    
+    }   
 }

@@ -90,6 +90,7 @@ public:
     AP_Int8  gps_delay;   // delay in samples
     AP_Int8  gps_type;    // see enum GPSType
     AP_Int8  gps2_type;
+    AP_Float gps2_noise;
     AP_Float gps_byteloss;// byte loss as a percent
     AP_Int8  gps_numsats; // number of visible satellites
     AP_Vector3f  gps_glitch;  // glitch offsets in lat, lon and altitude

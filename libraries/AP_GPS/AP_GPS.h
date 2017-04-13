@@ -114,7 +114,7 @@ public:
         uint16_t time_week;                 ///< GPS week number
         Location location;                  ///< last fix location
         Location compensated_location;         ///< locations which follows primary location. For smooth movement during gps switches
-        Vector3f offset;
+        Location offset;
         float ground_speed;                 ///< ground speed in m/sec
         float ground_course;                ///< ground course in degrees
         uint16_t hdop;                      ///< horizontal dilution of precision in cm
@@ -130,10 +130,6 @@ public:
         bool have_vertical_accuracy:1;
         uint32_t last_gps_time_ms;          ///< the system time we got the last GPS timestamp, milliseconds
     };
-
-    Location_Class primary_location;
-    Location_Class secondary_location;
-
 
     // Pass mavlink data to message handlers (for MAV type)
     void handle_msg(const mavlink_message_t *msg);
@@ -164,11 +160,11 @@ public:
 
     // location of last fix
     const Location &location(uint8_t instance) const {
-        if (_prefered_gps_index != primary_instance) {
+      //  if (instance == primary_instance) {
             return state[instance].compensated_location;
-        } else {
-            return state[instance].location;
-        }
+//        } else {
+//            return state[instance].location; // This is for logging purpose
+//       }
     }
 
     const Location &location() const {
@@ -353,7 +349,7 @@ public:
     AP_Int8 _save_config;
     AP_Int8 _auto_config;
     // instance index for driver which is considered to be the most reliable
-    AP_Int8 _prefered_gps_index;
+    AP_Int8 _referenced_instance;
 
     // handle sending of initialisation strings to the GPS
     void send_blob_start(uint8_t instance, const char *_blob, uint16_t size);

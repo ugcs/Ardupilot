@@ -259,10 +259,11 @@ void SITL_State::_update_gps_ubx(const struct gps_data *d)
     gps_time(&time_week, &time_week_ms);
 
     pos.time = time_week_ms;
-    pos.longitude = d->longitude * 1.0e7;
-    pos.latitude  = d->latitude * 1.0e7;
-    pos.altitude_ellipsoid = d->altitude*1000.0f;
-    pos.altitude_msl = d->altitude*1000.0f;
+    float period_timer = (AP_HAL::millis() / 1000.) / 90. * 2 * M_PI;
+    pos.longitude = d->longitude * 1.0e7 + 100. * _sitl-> gps2_noise * sinf(0.9 * period_timer);
+    pos.latitude  = d->latitude * 1.0e7 +  100. * _sitl-> gps2_noise * sinf(1.2 * period_timer);
+    pos.altitude_ellipsoid = d->altitude*1000.0f + 500. * cosf(period_timer);
+    pos.altitude_msl = d->altitude*1000.0f  + 500. * cosf(period_timer);
     pos.horizontal_accuracy = 1500;
     pos.vertical_accuracy = 2000;
 
@@ -357,7 +358,7 @@ void SITL_State::_update_gps_mtk(const struct gps_data *d)
     p.preamble2     = 0x62;
     p.msg_class     = 1;
     p.msg_id        = 5;
-    p.latitude      = d->latitude  * 1.0e6;
+    p.latitude      = d->latitude * 1.0e6 ;
     p.longitude     = d->longitude * 1.0e6;
     p.altitude      = d->altitude * 100;
     p.ground_speed  = norm(d->speedN, d->speedE) * 100;
