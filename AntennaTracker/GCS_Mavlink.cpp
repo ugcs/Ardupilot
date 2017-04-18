@@ -366,7 +366,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
 void
 GCS_MAVLINK_Tracker::data_stream_send(void)
 {
-    if (_queued_parameter != NULL) {
+    if (_queued_parameter != nullptr) {
         if (streamRates[STREAM_PARAMS].get() <= 0) {
             streamRates[STREAM_PARAMS].set(10);
         }
@@ -533,15 +533,9 @@ void GCS_MAVLINK_Tracker::handleMessage(mavlink_message_t* msg)
         break;
     }
 
-    case MAVLINK_MSG_ID_PARAM_REQUEST_READ:
-    {
-        handle_param_request_read(msg);
-        break;
-    }
-
     case MAVLINK_MSG_ID_PARAM_SET:
     {
-        handle_param_set(msg, NULL);
+        handle_param_set(msg, nullptr);
         break;
     }
 
@@ -684,6 +678,14 @@ void GCS_MAVLINK_Tracker::handleMessage(mavlink_message_t* msg)
             case MAV_CMD_DO_ACCEPT_MAG_CAL:
             case MAV_CMD_DO_CANCEL_MAG_CAL:
                 result = tracker.compass.handle_mag_cal_command(packet);
+                break;
+
+            case MAV_CMD_ACCELCAL_VEHICLE_POS:
+                result = MAV_RESULT_FAILED;
+
+                if (tracker.ins.get_acal()->gcs_vehicle_position(packet.param1)) {
+                    result = MAV_RESULT_ACCEPTED;
+                }
                 break;
 
             default:
@@ -863,6 +865,7 @@ mission_failed:
 
     case MAVLINK_MSG_ID_GPS_RTCM_DATA:
     case MAVLINK_MSG_ID_GPS_INPUT:
+    case MAVLINK_MSG_ID_HIL_GPS:
         tracker.gps.handle_msg(msg);
         break;
 
@@ -870,8 +873,8 @@ mission_failed:
         send_autopilot_version(FIRMWARE_VERSION);
         break;
 
-    case MAVLINK_MSG_ID_SETUP_SIGNING:
-        handle_setup_signing(msg);
+    default:
+        handle_common_message(msg);
         break;
     } // end switch
 } // end handle mavlink
@@ -940,7 +943,7 @@ void Tracker::gcs_update(void)
 {
     for (uint8_t i=0; i<num_gcs; i++) {
         if (gcs[i].initialised) {
-            gcs[i].update(NULL);
+            gcs[i].update(nullptr);
         }
     }
 }
@@ -948,6 +951,7 @@ void Tracker::gcs_update(void)
 void Tracker::gcs_send_text(MAV_SEVERITY severity, const char *str)
 {
     GCS_MAVLINK::send_statustext(severity, 0xFF, str);
+    notify.send_text(str);
 }
 
 /*
@@ -963,6 +967,7 @@ void Tracker::gcs_send_text_fmt(MAV_SEVERITY severity, const char *fmt, ...)
     hal.util->vsnprintf((char *)str, sizeof(str), fmt, arg_list);
     va_end(arg_list);
     GCS_MAVLINK::send_statustext(severity, 0xFF, str);
+    notify.send_text(str);
 }
 
 /**

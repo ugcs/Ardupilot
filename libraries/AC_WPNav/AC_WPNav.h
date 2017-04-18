@@ -21,7 +21,7 @@
 #define WPNAV_LOITER_JERK_MAX_DEFAULT  1000.0f      // maximum jerk in cm/s/s/s in loiter mode
 
 #define WPNAV_WP_SPEED                  500.0f      // default horizontal speed between waypoints in cm/s
-#define WPNAV_WP_SPEED_MIN              100.0f      // minimum horizontal speed between waypoints in cm/s
+#define WPNAV_WP_SPEED_MIN               20.0f      // minimum horizontal speed between waypoints in cm/s
 #define WPNAV_WP_TRACK_SPEED_MIN         50.0f      // minimum speed along track of the target point the vehicle is chasing in cm/s (used as target slows down before reaching destination)
 #define WPNAV_WP_RADIUS                 200.0f      // default waypoint radius in cm
 
@@ -84,7 +84,9 @@ public:
 
     /// set_pilot_desired_acceleration - sets pilot desired acceleration from roll and pitch stick input
     void set_pilot_desired_acceleration(float control_roll, float control_pitch);
-
+    /// get_pilot_desired_acceleration - gets pilot desired
+    /// acceleration, body frame, [forward,right]
+    Vector2f get_pilot_desired_acceleration() const { return Vector2f(_pilot_accel_fwd_cms, _pilot_accel_rgt_cms); }
     /// clear_pilot_desired_acceleration - clear pilot desired acceleration
     void clear_pilot_desired_acceleration() { _pilot_accel_fwd_cms = 0.0f; _pilot_accel_rgt_cms = 0.0f; }
 
@@ -309,8 +311,8 @@ protected:
     const AP_AHRS&          _ahrs;
     AC_PosControl&          _pos_control;
     const AC_AttitudeControl& _attitude_control;
-    AP_Terrain              *_terrain = NULL;
-    AC_Avoid                *_avoid = NULL;
+    AP_Terrain              *_terrain = nullptr;
+    AC_Avoid                *_avoid = nullptr;
 
     // parameters
     AP_Float    _loiter_speed_cms;      // maximum horizontal speed in cm/s while in loiter

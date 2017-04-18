@@ -3,6 +3,8 @@
 #include "AC_PrecLand_Backend.h"
 #include "AC_PrecLand_Companion.h"
 #include "AC_PrecLand_IRLock.h"
+#include "AC_PrecLand_SITL_Gazebo.h"
+#include "AC_PrecLand_SITL.h"
 
 extern const AP_HAL::HAL& hal;
 
@@ -17,7 +19,7 @@ const AP_Param::GroupInfo AC_PrecLand::var_info[] = {
     // @Param: TYPE
     // @DisplayName: Precision Land Type
     // @Description: Precision Land Type
-    // @Values: 0:None, 1:CompanionComputer, 2:IRLock
+    // @Values: 0:None, 1:CompanionComputer, 2:IRLock, 3:SITL_Gazebo, 4:SITL
     // @User: Advanced
     AP_GROUPINFO("TYPE",    1, AC_PrecLand, _type, 0),
 
@@ -48,6 +50,9 @@ const AP_Param::GroupInfo AC_PrecLand::var_info[] = {
     // @Units: Centimeters
     AP_GROUPINFO("LAND_OFS_Y",    4, AC_PrecLand, _land_ofs_cm_y, 0),
 
+    // 5 RESERVED for EKF_TYPE
+    // 6 RESERVED for ACC_NSE
+
     AP_GROUPEND
 };
 
@@ -60,7 +65,7 @@ AC_PrecLand::AC_PrecLand(const AP_AHRS& ahrs, const AP_InertialNav& inav) :
     _inav(inav),
     _last_update_ms(0),
     _last_backend_los_meas_ms(0),
-    _backend(NULL)
+    _backend(nullptr)
 {
     // set parameters to defaults
     AP_Param::setup_object_defaults(this, var_info);
@@ -74,12 +79,12 @@ AC_PrecLand::AC_PrecLand(const AP_AHRS& ahrs, const AP_InertialNav& inav) :
 void AC_PrecLand::init()
 {
     // exit immediately if init has already been run
-    if (_backend != NULL) {
+    if (_backend != nullptr) {
         return;
     }
 
     // default health to false
-    _backend = NULL;
+    _backend = nullptr;
     _backend_state.healthy = false;
 
     // instantiate backend based on type parameter
@@ -93,15 +98,23 @@ void AC_PrecLand::init()
             _backend = new AC_PrecLand_Companion(*this, _backend_state);
             break;
         // IR Lock
-#if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN || CONFIG_HAL_BOARD == HAL_BOARD_SITL
+#if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
         case PRECLAND_TYPE_IRLOCK:
             _backend = new AC_PrecLand_IRLock(*this, _backend_state);
+            break;
+#endif
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+        case PRECLAND_TYPE_SITL_GAZEBO:
+            _backend = new AC_PrecLand_SITL_Gazebo(*this, _backend_state);
+            break;
+        case PRECLAND_TYPE_SITL:
+            _backend = new AC_PrecLand_SITL(*this, _backend_state);
             break;
 #endif
     }
 
     // init backend
-    if (_backend != NULL) {
+    if (_backend != nullptr) {
         _backend->init();
     }
 }
@@ -112,7 +125,7 @@ void AC_PrecLand::update(float rangefinder_alt_cm, bool rangefinder_alt_valid)
     _attitude_history.push_back(_ahrs.get_rotation_body_to_ned());
     
     // run backend update
-    if (_backend != NULL && _enabled) {
+    if (_backend != nullptr && _enabled) {
         // read from sensor
         _backend->update();
 
@@ -228,7 +241,7 @@ bool AC_PrecLand::get_target_velocity_relative_cms(Vector2f& ret) const
 void AC_PrecLand::handle_msg(mavlink_message_t* msg)
 {
     // run backend update
-    if (_backend != NULL) {
+    if (_backend != nullptr) {
         _backend->handle_msg(msg);
     }
 }

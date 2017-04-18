@@ -469,7 +469,7 @@ void AP_ADSB::send_dynamic_out(const mavlink_channel_t chan)
 
     int32_t latitude = _my_loc.lat;
     int32_t longitude = _my_loc.lng;
-    int32_t altGNSS = _my_loc.alt*0.1f; // convert cm to mm
+    int32_t altGNSS = _my_loc.alt * 10; // convert cm to mm
     int16_t velVert = gps_velocity.z * 1E2; // convert m/s to cm/s
     int16_t nsVog = gps_velocity.x * 1E2; // convert m/s to cm/s
     int16_t ewVog = gps_velocity.y * 1E2; // convert m/s to cm/s
@@ -639,15 +639,8 @@ void AP_ADSB::set_callsign(const char* str, const bool append_icao)
     } // for i
 
     if (append_icao) {
-        char str_icao[5];
-        sprintf(str_icao, "%04X", out_state.cfg.ICAO_id % 0x10000);
-        out_state.cfg.callsign[4] = str_icao[0];
-        out_state.cfg.callsign[5] = str_icao[1];
-        out_state.cfg.callsign[6] = str_icao[2];
-        out_state.cfg.callsign[7] = str_icao[3];
+        snprintf(&out_state.cfg.callsign[4], 5, "%04X", out_state.cfg.ICAO_id % 0x10000);
     }
-
-    out_state.cfg.callsign[sizeof(out_state.cfg.callsign)-1] = 0; // always null terminate just to be sure
 }
 
 

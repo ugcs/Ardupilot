@@ -73,8 +73,8 @@
 // declare a pointer subgroup entry in a group var_info
 #define AP_SUBGROUPPTR(element, name, idx, thisclazz, elclazz) { AP_PARAM_GROUP, idx, name, AP_VAROFFSET(thisclazz, element), { group_info : elclazz::var_info }, AP_PARAM_FLAG_POINTER }
 
-#define AP_GROUPEND     { AP_PARAM_NONE, 0xFF, "", 0, { group_info : NULL } }
-#define AP_VAREND       { AP_PARAM_NONE, "", 0, NULL, { group_info : NULL } }
+#define AP_GROUPEND     { AP_PARAM_NONE, 0xFF, "", 0, { group_info : nullptr } }
+#define AP_VAREND       { AP_PARAM_NONE, "", 0, nullptr, { group_info : nullptr } }
 
 enum ap_var_type {
     AP_PARAM_NONE    = 0,
@@ -121,7 +121,7 @@ public:
     };
     struct ConversionInfo {
         uint16_t old_key; // k_param_*
-        uint8_t old_group_element; // index in old object
+        uint32_t old_group_element; // index in old object
         enum ap_var_type type; // AP_PARAM_*
         const char *new_name;
     };
@@ -197,7 +197,7 @@ public:
     /// If the variable has no name, it cannot be found by this interface.
     ///
     /// @param  name            The full name of the variable to be found.
-    /// @return                 A pointer to the variable, or NULL if
+    /// @return                 A pointer to the variable, or nullptr if
     ///                         it does not exist.
     ///
     static AP_Param * find(const char *name, enum ap_var_type *ptype);
@@ -213,7 +213,7 @@ public:
     ///
     ///
     /// @param  idx             The index of the variable
-    /// @return                 A pointer to the variable, or NULL if
+    /// @return                 A pointer to the variable, or nullptr if
     ///                         it does not exist.
     ///
     static AP_Param * find_by_index(uint16_t idx, enum ap_var_type *ptype, ParamToken *token);
@@ -262,8 +262,12 @@ public:
     ///
     /// @return                False if any variable failed to load
     ///
-    static bool load_all(void);
+    static bool load_all(bool check_defaults_file=true);
 
+    /// reoad the hal.util defaults file. Called after pointer parameters have been allocated
+    ///
+    static void reload_defaults_file(bool panic_on_error=true);
+    
     static void load_object_from_eeprom(const void *object_pointer, const struct GroupInfo *group_info);
     
     // set a AP_Param variable to a specified value
@@ -288,12 +292,23 @@ public:
     // does not recurse into the sub-objects    
     static void         setup_sketch_defaults(void);
 
+    // find an old parameter and return it.
+    static bool find_old_parameter(const struct ConversionInfo *info, AP_Param *value);
+    
     // convert old vehicle parameters to new object parameters
-    static void         convert_old_parameters(const struct ConversionInfo *conversion_table, uint8_t table_size);
+    static void         convert_old_parameters(const struct ConversionInfo *conversion_table, uint8_t table_size, uint8_t flags=0);
 
     // convert a single parameter with scaling
-    static void         convert_old_parameter(const struct ConversionInfo *info, float scaler);
+    enum {
+        CONVERT_FLAG_REVERSE=1, // handle _REV -> _REVERSED conversion
+        CONVERT_FLAG_FORCE=2    // store new value even if configured in eeprom already
+    };
+    static void         convert_old_parameter(const struct ConversionInfo *info, float scaler, uint8_t flags=0);
 
+    // move old class variables for a class that was sub-classed to one that isn't
+    static void         convert_parent_class(uint8_t param_key, void *object_pointer,
+                                             const struct AP_Param::GroupInfo *group_info);
+    
     /// Erase all variables in EEPROM.
     ///
     static void         erase_all(void);
@@ -315,7 +330,7 @@ public:
 
     /// Returns the first variable
     ///
-    /// @return             The first variable in _var_info, or NULL if
+    /// @return             The first variable in _var_info, or nullptr if
     ///                     there are none.
     ///
     static AP_Param *      first(ParamToken *token, enum ap_var_type *ptype);
@@ -335,13 +350,13 @@ public:
     static bool             check_var_info(void);
 
     // return true if the parameter is configured in the defaults file
-    bool configured_in_defaults_file(void);
+    bool configured_in_defaults_file(void) const;
 
     // return true if the parameter is configured in EEPROM/FRAM
-    bool configured_in_storage(void);
+    bool configured_in_storage(void) const;
 
     // return true if the parameter is configured
-    bool configured(void) { return configured_in_defaults_file() || configured_in_storage(); }
+    bool configured(void) const { return configured_in_defaults_file() || configured_in_storage(); }
 
     // count of parameters in tree
     static uint16_t count_parameters(void);
@@ -458,21 +473,16 @@ private:
                                     enum ap_var_type *ptype);
 
     // find a default value given a pointer to a default value in flash
-    static float get_default_value(const float *def_value_ptr);
-
-    /*
-      find the def_value for a variable by name
-    */
-    static const float *find_def_value_ptr(const char *name);
+    static float get_default_value(const AP_Param *object_ptr, const float *def_value_ptr);
 
 #if HAL_OS_POSIX_IO == 1
     /*
       load a parameter defaults file. This happens as part of load_all()
      */
     static bool parse_param_line(char *line, char **vname, float &value);
-    static bool load_defaults_file(const char *filename);
+    static bool load_defaults_file(const char *filename, bool panic_on_error);
 #endif
-
+    
     // send a parameter to all GCS instances
     void send_parameter(const char *name, enum ap_var_type param_header_type, uint8_t idx) const;
     
@@ -485,7 +495,7 @@ private:
       list of overridden values from load_defaults_file()
     */
     struct param_override {
-        const float *def_value_ptr;
+        const AP_Param *object_ptr;
         float value;
     };
     static struct param_override *param_overrides;

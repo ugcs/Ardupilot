@@ -192,15 +192,15 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Range: 0 250
     // @Increment: 10
     // @User: Advanced
-    // @Units: msec
+    // @Units: milliseconds
     AP_GROUPINFO("GPS_DELAY", 8, NavEKF2, _gpsDelay_ms, 220),
 
     // Height measurement parameters
 
     // @Param: ALT_SOURCE
-    // @DisplayName: Primary height source
-    // @Description: This parameter controls the primary height sensor used by the EKF. If the selected option cannot be used, it will default to Baro as the primary height source. Setting 0 will use the baro altitude at all times. Setting 1 uses the range finder and is only available in combination with optical flow navigation (EK2_GPS_TYPE = 3). Setting 2 uses GPS. NOTE - the EK2_RNG_USE_HGT parameter can be used to switch to range-finder when close to the ground.
-    // @Values: 0:Use Baro, 1:Use Range Finder, 2:Use GPS
+    // @DisplayName: Primary altitude sensor source
+    // @Description: This parameter controls the primary height sensor used by the EKF. If the selected option cannot be used, it will default to Baro as the primary height source. Setting 0 will use the baro altitude at all times. Setting 1 uses the range finder and is only available in combination with optical flow navigation (EK2_GPS_TYPE = 3). Setting 2 uses GPS. Setting 3 uses the range beacon data. NOTE - the EK2_RNG_USE_HGT parameter can be used to switch to range-finder when close to the ground.
+    // @Values: 0:Use Baro, 1:Use Range Finder, 2:Use GPS, 3:Use Range Beacon
     // @User: Advanced
     AP_GROUPINFO("ALT_SOURCE", 9, NavEKF2, _altSource, 0),
 
@@ -227,7 +227,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Range: 0 250
     // @Increment: 10
     // @User: Advanced
-    // @Units: msec
+    // @Units: milliseconds
     AP_GROUPINFO("HGT_DELAY", 12, NavEKF2, _hgtDelay_ms, 60),
 
     // Magnetometer measurement parameters
@@ -328,7 +328,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Range: 0 250
     // @Increment: 10
     // @User: Advanced
-    // @Units: msec
+    // @Units: milliseconds
     AP_GROUPINFO("FLOW_DELAY", 23, NavEKF2, _flowDelay_ms, FLOW_MEAS_DELAY),
 
     // State and Covariance Predition Parameters
@@ -387,7 +387,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     AP_GROUPINFO("WIND_P_NSE", 30, NavEKF2, _windVelProcessNoise, 0.1f),
 
     // @Param: WIND_PSCALE
-    // @DisplayName: Height rate to wind procss noise scaler
+    // @DisplayName: Height rate to wind process noise scaler
     // @Description: This controls how much the process noise on the wind states is increased when gaining or losing altitude to take into account changes in wind speed and direction with altitude. Increasing this parameter increases how rapidly the wind states adapt when changing altitude, but does make wind velocity estimation noiser.
     // @Range: 0.0 1.0
     // @Increment: 0.1
@@ -404,7 +404,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Param: IMU_MASK
     // @DisplayName: Bitmask of active IMUs
     // @Description: 1 byte bitmap of IMUs to use in EKF2. A separate instance of EKF2 will be started for each IMU selected. Set to 1 to use the first IMU only (default), set to 2 to use the second IMU only, set to 3 to use the first and second IMU. Additional IMU's can be used up to a maximum of 6 if memory and processing resources permit. There may be insufficient memory and processing resources to run multiple instances. If this occurs EKF2 will fail to start.
-    // @Range: 1 127
+    // @Bitmask: 0:FirstIMU,1:SecondIMU,2:ThirdIMU,3:FourthIMU,4:FifthIMU,5:SixthIMU
     // @User: Advanced
     AP_GROUPINFO("IMU_MASK",     33, NavEKF2, _imuMask, 3),
     
@@ -421,13 +421,13 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Description: This sets the amount of position variation that the EKF allows for when operating without external measurements (eg GPS or optical flow). Increasing this parameter makes the EKF attitude estimate less sensitive to vehicle manoeuvres but more sensitive to IMU errors.
     // @Range: 0.5 50.0
     // @User: Advanced
-    // @Units: m/s
+    // @Units: m
     AP_GROUPINFO("NOAID_M_NSE", 35, NavEKF2, _noaidHorizNoise, 10.0f),
 
     // @Param: LOG_MASK
     // @DisplayName: EKF sensor logging IMU mask
     // @Description: This sets the IMU mask of sensors to do full logging for
-    // @Values: 0:Disabled,1:FirstIMU,3:FirstAndSecondIMU,7:AllIMUs
+    // @Bitmask: 0:FirstIMU,1:SecondIMU,2:ThirdIMU,3:FourthIMU,4:FifthIMU,5:SixthIMU
     // @User: Advanced
     AP_GROUPINFO("LOG_MASK", 36, NavEKF2, _logging_mask, 1),
 
@@ -439,7 +439,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Range: 0.05 1.0
     // @Increment: 0.05
     // @User: Advanced
-    // @Units: gauss
+    // @Units: rad
     AP_GROUPINFO("YAW_M_NSE", 37, NavEKF2, _yawNoise, 0.5f),
 
     // @Param: YAW_I_GATE
@@ -456,6 +456,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Range: 10 50
     // @Increment: 5
     // @User: Advanced
+    // @Units: cs
     AP_GROUPINFO("TAU_OUTPUT", 39, NavEKF2, _tauVelPosOutput, 25),
 
     // @Param: MAGE_P_NSE
@@ -485,11 +486,46 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
     // @Param: TERR_GRAD
     // @DisplayName: Maximum terrain gradient
-    // @Description: Specifies the maxium gradient of the terrain below the vehicle when it is using range finder as a height reference
+    // @Description: Specifies the maximum gradient of the terrain below the vehicle when it is using range finder as a height reference
     // @Range: 0 0.2
     // @Increment: 0.01
     // @User: Advanced
     AP_GROUPINFO("TERR_GRAD", 43, NavEKF2, _terrGradMax, 0.1f),
+
+    // @Param: BCN_M_NSE
+    // @DisplayName: Range beacon measurement noise (m)
+    // @Description: This is the RMS value of noise in the range beacon measurement. Increasing it reduces the weighting on this measurement.
+    // @Range: 0.1 10.0
+    // @Increment: 0.1
+    // @User: Advanced
+    // @Units: m
+    AP_GROUPINFO("BCN_M_NSE", 44, NavEKF2, _rngBcnNoise, 1.0f),
+
+    // @Param: BCN_I_GTE
+    // @DisplayName: Range beacon measurement gate size
+    // @Description: This sets the percentage number of standard deviations applied to the range beacon measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
+    // @Range: 100 1000
+    // @Increment: 25
+    // @User: Advanced
+    AP_GROUPINFO("BCN_I_GTE", 45, NavEKF2, _rngBcnInnovGate, 500),
+
+    // @Param: BCN_DELAY
+    // @DisplayName: Range beacon measurement delay (msec)
+    // @Description: This is the number of msec that the range beacon measurements lag behind the inertial measurements. It is the time from the end of the optical flow averaging period and does not include the time delay due to the 100msec of averaging within the flow sensor.
+    // @Range: 0 250
+    // @Increment: 10
+    // @User: Advanced
+    // @Units: milliseconds
+    AP_GROUPINFO("BCN_DELAY", 46, NavEKF2, _rngBcnDelay_ms, 50),
+
+    // @Param: RNG_USE_SPD
+    // @DisplayName: Range finder max ground speed
+    // @Description: The range finder will not be used as the primary height source when the horizontal ground speed is greater than this value.
+    // @Range: 2.0 6.0
+    // @Increment: 0.5
+    // @User: Advanced
+    // @Units: m/s
+    AP_GROUPINFO("RNG_USE_SPD", 47, NavEKF2, _useRngSwSpd, 2.0f),
 
     AP_GROUPEND
 };
@@ -503,9 +539,9 @@ NavEKF2::NavEKF2(const AP_AHRS *ahrs, AP_Baro &baro, const RangeFinder &rng) :
     gpsPosVarAccScale(0.05f),       // Scale factor applied to horizontal position measurement variance due to manoeuvre acceleration
     magDelay_ms(60),                // Magnetometer measurement delay (msec)
     tasDelay_ms(240),               // Airspeed measurement delay (msec)
-    gpsRetryTimeUseTAS_ms(10000),   // GPS retry time with airspeed measurements (msec)
-    gpsRetryTimeNoTAS_ms(7000),     // GPS retry time without airspeed measurements (msec)
-    gpsFailTimeWithFlow_ms(1000),   // If we have no GPS for longer than this and we have optical flow, then we will switch across to using optical flow (msec)
+    tiltDriftTimeMax_ms(15000),      // Maximum number of ms allowed without any form of tilt aiding (GPS, flow, TAS, etc)
+    posRetryTimeUseVel_ms(10000),   // Position aiding retry time with velocity measurements (msec)
+    posRetryTimeNoVel_ms(7000),     // Position aiding retry time without velocity measurements (msec)
     hgtRetryTimeMode0_ms(10000),    // Height retry time with vertical velocity measurement (msec)
     hgtRetryTimeMode12_ms(5000),    // Height retry time without vertical velocity measurement (msec)
     tasRetryTime_ms(5000),          // True airspeed timeout and retry interval (msec)
@@ -762,7 +798,7 @@ void NavEKF2::getVelNED(int8_t instance, Vector3f &vel)
     }
 }
 
-// Return the rate of change of vertical position in the down diection (dPosD/dt) in m/s
+// Return the rate of change of vertical position in the down direction (dPosD/dt) in m/s
 float NavEKF2::getPosDownDerivative(int8_t instance)
 {
     if (instance < 0 || instance >= num_cores) instance = primary;
@@ -951,7 +987,7 @@ bool NavEKF2::getOriginLLH(struct Location &loc) const
 }
 
 // set the latitude and longitude and height used to set the NED origin
-// All NED positions calcualted by the filter will be relative to this location
+// All NED positions calculated by the filter will be relative to this location
 // The origin cannot be set if the filter is in a flight mode (eg vehicle armed)
 // Returns false if the filter has rejected the attempt to set the origin
 bool NavEKF2::setOriginLLH(struct Location &loc)
@@ -1040,11 +1076,12 @@ bool NavEKF2::use_compass(void) const
 // rawGyroRates are the sensor rotation rates in rad/sec measured by the sensors internal gyro
 // The sign convention is that a RH physical rotation of the sensor about an axis produces both a positive flow and gyro rate
 // msecFlowMeas is the scheduler time in msec when the optical flow data was received from the sensor.
-void NavEKF2::writeOptFlowMeas(uint8_t &rawFlowQuality, Vector2f &rawFlowRates, Vector2f &rawGyroRates, uint32_t &msecFlowMeas)
+// posOffset is the XYZ flow sensor position in the body frame in m
+void NavEKF2::writeOptFlowMeas(uint8_t &rawFlowQuality, Vector2f &rawFlowRates, Vector2f &rawGyroRates, uint32_t &msecFlowMeas, const Vector3f &posOffset)
 {
     if (core) {
         for (uint8_t i=0; i<num_cores; i++) {
-            core[i].writeOptFlowMeas(rawFlowQuality, rawFlowRates, rawGyroRates, msecFlowMeas);
+            core[i].writeOptFlowMeas(rawFlowQuality, rawFlowRates, rawGyroRates, msecFlowMeas, posOffset);
         }
     }
 }
@@ -1056,6 +1093,17 @@ void NavEKF2::getFlowDebug(int8_t instance, float &varFlow, float &gndOffset, fl
     if (instance < 0 || instance >= num_cores) instance = primary;
     if (core) {
         core[instance].getFlowDebug(varFlow, gndOffset, flowInnovX, flowInnovY, auxInnov, HAGL, rngInnov, range, gndOffsetErr);
+    }
+}
+
+// return data for debugging range beacon fusion
+bool NavEKF2::getRangeBeaconDebug(int8_t instance, uint8_t &ID, float &rng, float &innov, float &innovVar, float &testRatio, Vector3f &beaconPosNED, float &offsetHigh, float &offsetLow)
+{
+    if (instance < 0 || instance >= num_cores) instance = primary;
+    if (core) {
+        return core[instance].getRangeBeaconDebug(ID, rng, innov, innovVar, testRatio, beaconPosNED, offsetHigh, offsetLow);
+    } else {
+        return false;
     }
 }
 

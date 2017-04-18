@@ -161,7 +161,11 @@ protected:
     AP_Int16            _pwm_max;               // maximum PWM value that will ever be output to the motors (if 0, vehicle's throttle input channel's max pwm used)
     AP_Float            _throttle_hover;        // estimated throttle required to hover throttle in the range 0 ~ 1
     AP_Int8             _throttle_hover_learn;  // enable/disabled hover thrust learning
+    AP_Int8             _disarm_disable_pwm;    // disable PWM output while disarmed
 
+    // Maximum lean angle of yaw servo in degrees. This is specific to tricopter
+    AP_Float            _yaw_servo_angle_max_deg;
+    
     // motor output variables
     bool                motor_enabled[AP_MOTORS_MAX_NUM_MOTORS];    // true if motor is enabled
     int16_t             _throttle_radio_min;        // minimum PWM from RC input's throttle channel (i.e. minimum PWM input from receiver, RC3_MIN)
@@ -180,6 +184,7 @@ protected:
     float               _lift_max;              // maximum lift ratio from battery voltage
     float               _throttle_limit;        // ratio of throttle limit between hover and maximum
     float               _throttle_thrust_max;   // the maximum allowed throttle thrust 0.0 to 1.0 in the range throttle_min to throttle_max
+    uint16_t            _disarm_safety_timer;
 
     // vehicle supplied callback for thrust compensation. Used for tiltrotors and tiltwings
     thrust_compensation_fn_t _thrust_compensation_callback;

@@ -26,6 +26,7 @@ private:
 
     uint32_t _last_update_timestamp;
     uint16_t _frequency;
+    uint16_t _new_frequency;
     uint16_t _period_us[8];
     bool _corked;
 };

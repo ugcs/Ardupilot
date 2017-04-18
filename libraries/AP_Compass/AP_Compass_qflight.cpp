@@ -34,12 +34,12 @@ AP_Compass_QFLIGHT::AP_Compass_QFLIGHT(Compass &compass):
 AP_Compass_Backend *AP_Compass_QFLIGHT::detect(Compass &compass)
 {
     AP_Compass_QFLIGHT *sensor = new AP_Compass_QFLIGHT(compass);
-    if (sensor == NULL) {
-        return NULL;
+    if (sensor == nullptr) {
+        return nullptr;
     }
     if (!sensor->init()) {
         delete sensor;
-        return NULL;
+        return nullptr;
     }
     return sensor;
 }
@@ -56,11 +56,9 @@ bool AP_Compass_QFLIGHT::init(void)
 void AP_Compass_QFLIGHT::read(void)
 {
     if (count > 0) {
-        hal.scheduler->suspend_timer_procs();
         publish_filtered_field(sum/count, instance);
         sum.zero();
         count = 0;
-        hal.scheduler->resume_timer_procs();
     }
 }
 

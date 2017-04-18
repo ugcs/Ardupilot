@@ -10,7 +10,7 @@ const AP_Param::GroupInfo AC_WPNav::var_info[] = {
     // @DisplayName: Waypoint Horizontal Speed Target
     // @Description: Defines the speed in cm/s which the aircraft will attempt to maintain horizontally during a WP mission
     // @Units: cm/s
-    // @Range: 0 2000
+    // @Range: 20 2000
     // @Increment: 50
     // @User: Standard
     AP_GROUPINFO("SPEED",       0, AC_WPNav, _wp_speed_cms, WPNAV_WP_SPEED),
@@ -298,7 +298,7 @@ void AC_WPNav::calc_loiter_desired_velocity(float nav_dt, float ekfGndSpdLimit)
     }
 
     // Limit the velocity to prevent fence violations
-    if (_avoid != NULL) {
+    if (_avoid != nullptr) {
         _avoid->adjust_velocity(_pos_control.get_pos_xy_kP(), _loiter_accel_cmss, desired_vel);
     }
 
@@ -1160,7 +1160,7 @@ bool AC_WPNav::get_terrain_offset(float& offset_cm)
 
     // use terrain database
     float terr_alt = 0.0f;
-    if (_terrain != NULL && _terrain->height_above_terrain(terr_alt, true)) {
+    if (_terrain != nullptr && _terrain->height_above_terrain(terr_alt, true)) {
         offset_cm = _inav.get_altitude() - (terr_alt * 100.0f);
         return true;
     }

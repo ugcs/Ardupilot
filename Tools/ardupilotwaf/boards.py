@@ -305,6 +305,16 @@ class bbbmini(linux):
             CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_BBBMINI',
         )
 
+class blue(linux):
+    toolchain = 'arm-linux-gnueabihf'
+
+    def configure_env(self, cfg, env):
+        super(blue, self).configure_env(cfg, env)
+
+        env.DEFINES.update(
+            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_BLUE',
+        )
+
 class pxf(linux):
     toolchain = 'arm-linux-gnueabihf'
 
@@ -375,6 +385,16 @@ class dark(linux):
             CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_DARK',
         )
 
+class urus(linux):
+    toolchain = 'arm-linux-gnueabihf'
+
+    def configure_env(self, cfg, env):
+        super(urus, self).configure_env(cfg, env)
+
+        env.DEFINES.update(
+            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_URUS',
+        )
+
 class pxfmini(linux):
     toolchain = 'arm-linux-gnueabihf'
 
@@ -400,6 +420,7 @@ class px4(Board):
     def __init__(self):
         self.version = None
         self.use_px4io = True
+        self.ROMFS_EXCLUDE = []
 
     def configure(self, cfg):
         if not self.version:
@@ -413,6 +434,7 @@ class px4(Board):
 
         env.DEFINES.update(
             CONFIG_HAL_BOARD = 'HAL_BOARD_PX4',
+            HAVE_OCLOEXEC = 0,
             HAVE_STD_NULLPTR_T = 0,
         )
         env.CXXFLAGS += [
@@ -433,6 +455,7 @@ class px4(Board):
             'PX4NuttX',
             'uavcan',
         ]
+        env.ROMFS_EXCLUDE = self.ROMFS_EXCLUDE
 
         env.PX4_VERSION = self.version
         env.PX4_USE_PX4IO = True if self.use_px4io else False
@@ -445,17 +468,28 @@ class px4(Board):
         bld.ap_version_append_str('PX4_GIT_VERSION', bld.git_submodule_head_hash('PX4Firmware', short=True))
         bld.load('px4')
 
+    def romfs_exclude(self, exclude):
+        self.ROMFS_EXCLUDE += exclude
+
 class px4_v1(px4):
     name = 'px4-v1'
     def __init__(self):
         super(px4_v1, self).__init__()
         self.version = '1'
+        self.romfs_exclude(['oreoled.bin'])
 
 class px4_v2(px4):
     name = 'px4-v2'
     def __init__(self):
         super(px4_v2, self).__init__()
         self.version = '2'
+        self.romfs_exclude(['oreoled.bin'])
+
+class px4_v3(px4):
+    name = 'px4-v3'
+    def __init__(self):
+        super(px4_v3, self).__init__()
+        self.version = '3'
 
 class px4_v4(px4):
     name = 'px4-v4'
@@ -463,3 +497,4 @@ class px4_v4(px4):
         super(px4_v4, self).__init__()
         self.version = '4'
         self.use_px4io = False
+        self.romfs_exclude(['oreoled.bin', 'px4io.bin'])

@@ -20,7 +20,11 @@
 
 #include <AP_HAL/AP_HAL.h>
 
-#include "../../Tools/Linux_HAL_Essentials/pru/aiopru/RcAioPRU_bin.h"
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BLUE
+#include "../../Tools/Linux_HAL_Essentials/pru/aiopru/RcAioPRU_BBBLUE_bin.h"
+#else
+#include "../../Tools/Linux_HAL_Essentials/pru/aiopru/RcAioPRU_BBBMINI_bin.h"
+#endif
 
 using namespace Linux;
 
@@ -36,7 +40,7 @@ void RCOutput_AioPRU::init()
 
    signal(SIGBUS,catch_sigbus);
 
-   mem_fd = open("/dev/mem", O_RDWR|O_SYNC);
+   mem_fd = open("/dev/mem", O_RDWR|O_SYNC|O_CLOEXEC);
 
    pwm = (struct pwm*) mmap(0, 0x1000, PROT_READ|PROT_WRITE, MAP_SHARED, mem_fd, RCOUT_PRUSS_RAM_BASE);
    iram = (uint32_t*)mmap(0, 0x2000, PROT_READ|PROT_WRITE, MAP_SHARED, mem_fd, RCOUT_PRUSS_IRAM_BASE);

@@ -12,19 +12,6 @@
 #include "CompassCalibrator.h"
 #include "AP_Compass_Backend.h"
 
-// compass product id
-#define AP_COMPASS_TYPE_UNKNOWN         0x00
-#define AP_COMPASS_TYPE_HIL             0x01
-#define AP_COMPASS_TYPE_HMC5843         0x02
-#define AP_COMPASS_TYPE_HMC5883L        0x03
-#define AP_COMPASS_TYPE_PX4             0x04
-#define AP_COMPASS_TYPE_VRBRAIN         0x05
-#define AP_COMPASS_TYPE_AK8963_MPU9250  0x06
-#define AP_COMPASS_TYPE_AK8963_I2C      0x07
-#define AP_COMPASS_TYPE_LSM303D         0x08
-#define AP_COMPASS_TYPE_LSM9DS1         0x09
-#define AP_COMPASS_TYPE_BMM150          0x0A
-
 // motor compensation types (for use with motor_comp_enabled)
 #define AP_COMPASS_MOT_COMP_DISABLED    0x00
 #define AP_COMPASS_MOT_COMP_THROTTLE    0x01
@@ -42,16 +29,18 @@
 # define MAG_BOARD_ORIENTATION ROTATION_NONE
 #endif
 
+// define default compass calibration fitness and consistency checks
+#define AP_COMPASS_CALIBRATION_FITNESS_DEFAULT 16.0f
+#define AP_COMPASS_MAX_XYZ_ANG_DIFF radians(90.0f)
+#define AP_COMPASS_MAX_XY_ANG_DIFF radians(60.0f)
+#define AP_COMPASS_MAX_XY_LENGTH_DIFF 200.0f
+
 /**
    maximum number of compass instances available on this platform. If more
    than 1 then redundant sensors may be available
  */
 #define COMPASS_MAX_INSTANCES 3
 #define COMPASS_MAX_BACKEND   3
-
-#define AP_COMPASS_MAX_XYZ_ANG_DIFF radians(50.0f)
-#define AP_COMPASS_MAX_XY_ANG_DIFF radians(30.0f)
-#define AP_COMPASS_MAX_XY_LENGTH_DIFF 100.0f
 
 class Compass
 {
@@ -388,6 +377,9 @@ private:
         // when we last got data
         uint32_t    last_update_ms;
         uint32_t    last_update_usec;
+
+        // board specific orientation
+        enum Rotation rotation;
     } _state[COMPASS_MAX_INSTANCES];
 
     CompassCalibrator _calibrator[COMPASS_MAX_INSTANCES];

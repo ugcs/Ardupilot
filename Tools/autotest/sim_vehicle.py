@@ -6,12 +6,14 @@ Framework to start a simulated vehicle and connect it to MAVProxy.
 Peter Barker, April 2016
 based on sim_vehicle.sh by Andrew Tridgell, October 2011
 """
+from __future__ import print_function
 
 import atexit
 import getpass
 import optparse
 import os
 import os.path
+import re
 import signal
 import subprocess
 import sys
@@ -184,7 +186,7 @@ def check_jsbsim_version():
                                 # check below and produce a reasonable
                                 # error message
     try:
-        jsbsim_version.index("ArduPilot")
+        jsbsim_version.index(b"ArduPilot")
     except ValueError:
         print(r"""
 =========================================================
@@ -225,24 +227,29 @@ _options_for_frame = {
     },
     # COPTER
     "+": {
-        "waf_target": "bin/arducopter-quad",
+        "waf_target": "bin/arducopter",
         "default_params_filename": "default_params/copter.parm",
     },
     "quad": {
         "model": "+",
-        "waf_target": "bin/arducopter-quad",
+        "waf_target": "bin/arducopter",
         "default_params_filename": "default_params/copter.parm",
     },
     "X": {
-        "waf_target": "bin/arducopter-quad",
+        "waf_target": "bin/arducopter",
         # this param set FRAME doesn't actually work because mavproxy
         # won't set a parameter unless it knows of it, and the param fetch happens asynchronously
         "default_params_filename": "default_params/copter.parm",
         "extra_mavlink_cmds": "param fetch frame; param set FRAME 1;",
     },
     "hexa": {
-        "make_target": "sitl-hexa",
-        "waf_target": "bin/arducopter-hexa",
+        "make_target": "sitl",
+        "waf_target": "bin/arducopter",
+        "default_params_filename": "default_params/copter.parm",
+    },
+    "octa-quad": {
+        "make_target": "sitl",
+        "waf_target": "bin/arducopter",
         "default_params_filename": "default_params/copter.parm",
     },
     "octa-quad": {
@@ -251,23 +258,23 @@ _options_for_frame = {
         "default_params_filename": "default_params/copter.parm",
     },
     "octa": {
-        "make_target": "sitl-octa",
-        "waf_target": "bin/arducopter-octa",
+        "make_target": "sitl",
+        "waf_target": "bin/arducopter",
         "default_params_filename": "default_params/copter.parm",
     },
     "tri": {
-        "make_target": "sitl-tri",
-        "waf_target": "bin/arducopter-tri",
+        "make_target": "sitl",
+        "waf_target": "bin/arducopter",
         "default_params_filename": "default_params/copter-tri.parm",
     },
     "y6": {
-        "make_target": "sitl-y6",
-        "waf_target": "bin/arducopter-y6",
+        "make_target": "sitl",
+        "waf_target": "bin/arducopter",
         "default_params_filename": "default_params/copter-y6.parm",
     },
     # COPTER TYPES
     "IrisRos": {
-        "waf_target": "bin/arducopter-quad",
+        "waf_target": "bin/arducopter",
         "default_params_filename": "default_params/copter.parm",
     },
     "firefly": {
@@ -289,25 +296,30 @@ _options_for_frame = {
         "waf_target": "bin/arducopter-coax",  # is this correct? -pb201604301447
     },
     "singlecopter": {
-        "make_target": "sitl-single",
-        "waf_target": "bin/arducopter-single",
+        "make_target": "sitl",
+        "waf_target": "bin/arducopter",
         "default_params_filename": "default_params/copter-single.parm",
     },
     "coaxcopter": {
-        "make_target": "sitl-coax",
-        "waf_target": "bin/arducopter-coax",
+        "make_target": "sitl",
+        "waf_target": "bin/arducopter",
         "default_params_filename": "default_params/copter-coax.parm",
     },
     # PLANE
     "quadplane-tilttri": {
-        "make_target": "sitl-tri",
-        "waf_target": "bin/arduplane-tri",
+        "make_target": "sitl",
+        "waf_target": "bin/arduplane",
         "default_params_filename": "default_params/quadplane-tilttri.parm",
     },
     "quadplane-tri": {
-        "make_target": "sitl-tri",
-        "waf_target": "bin/arduplane-tri",
+        "make_target": "sitl",
+        "waf_target": "bin/arduplane",
         "default_params_filename": "default_params/quadplane-tri.parm",
+    },
+    "quadplane-cl84" : {
+        "make_target" : "sitl",
+        "waf_target" : "bin/arduplane",
+        "default_params_filename": "default_params/quadplane-cl84.parm",
     },
     "quadplane": {
         "waf_target": "bin/arduplane",
@@ -336,7 +348,7 @@ _options_for_frame = {
     },
     # SIM
     "gazebo-iris": {
-        "waf_target": "bin/arducopter-quad",
+        "waf_target": "bin/arducopter",
         "default_params_filename": "default_params/gazebo-iris.parm",
     },
     "gazebo-zephyr": {
@@ -357,7 +369,7 @@ _options_for_frame = {
 
 _default_waf_target = {
     "ArduPlane": "bin/arduplane",
-    "ArduCopter": "bin/arducopter-quad",
+    "ArduCopter": "bin/arducopter",
     "APMrover2": "bin/ardurover",
     "AntennaTracker": "bin/antennatracker",
 }
@@ -489,14 +501,42 @@ def do_build(vehicledir, opts, frame_options):
     os.chdir(old_dir)
 
 
+def get_user_locations_path():
+    '''The user locations.txt file is located by default in
+    $XDG_CONFIG_DIR/ardupilot/locations.txt. If $XDG_CONFIG_DIR is
+    not defined, we look in $HOME/.config/ardupilot/locations.txt.  If
+    $HOME is not defined, we look in ./.config/ardpupilot/locations.txt.'''
+
+    config_dir = os.environ.get(
+        'XDG_CONFIG_DIR',
+        os.path.join(os.environ.get('HOME', '.'), '.config'))
+
+    user_locations_path = os.path.join(
+        config_dir, 'ardupilot', 'locations.txt')
+
+    return user_locations_path
+
+
 def find_location_by_name(autotest, locname):
     """Search locations.txt for locname, return GPS coords"""
+    locations_userpath = os.environ.get('ARDUPILOT_LOCATIONS',
+                                        get_user_locations_path())
     locations_filepath = os.path.join(autotest, "locations.txt")
-    for line in open(locations_filepath, 'r'):
-        line = line.rstrip("\n")
-        (name, loc) = line.split("=")
-        if name == locname:
-            return loc
+    comment_regex = re.compile("\s*#.*")
+    for path in [locations_userpath, locations_filepath]:
+        if not os.path.isfile(path):
+            continue
+
+        with open(path, 'r') as fd:
+            for line in fd:
+                line = re.sub(comment_regex, "", line)
+                line = line.rstrip("\n")
+                if len(line) == 0:
+                    continue
+                (name, loc) = line.split("=")
+                if name == locname:
+                    return loc
+
     print("Failed to find location (%s)" % cmd_opts.location)
     sys.exit(1)
 
@@ -626,7 +666,7 @@ def start_mavproxy(opts, stuff):
     # If running inside of a vagrant guest, then we probably want to forward our mavlink out to the containing host OS
     ports = [p + 10 * cmd_opts.instance for p in [14550,14551]]
     for port in ports:
-        if getpass.getuser() == "vagrant":
+        if os.path.isfile("/ardupilot.vagrant"):
             cmd.extend(["--out", "10.0.2.2:" + str(port)])
         else:
             cmd.extend(["--out", "127.0.0.1:" + str(port)])
@@ -666,7 +706,7 @@ def start_mavproxy(opts, stuff):
     env['PYTHONPATH'] = local_mp_modules_dir + os.pathsep + env.get('PYTHONPATH', '')
 
     run_cmd_blocking("Run MavProxy", cmd, env=env)
-    progress("MAVProxy exitted")
+    progress("MAVProxy exited")
 
 
 # define and run parser

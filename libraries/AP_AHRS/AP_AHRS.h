@@ -24,6 +24,7 @@
 #include <inttypes.h>
 #include <AP_Compass/AP_Compass.h>
 #include <AP_Airspeed/AP_Airspeed.h>
+#include <AP_Beacon/AP_Beacon.h>
 #include <AP_GPS/AP_GPS.h>
 #include <AP_InertialSensor/AP_InertialSensor.h>
 #include <AP_Baro/AP_Baro.h>
@@ -54,9 +55,10 @@ public:
         pitch_sensor(0),
         yaw_sensor(0),
         _vehicle_class(AHRS_VEHICLE_UNKNOWN),
-        _compass(NULL),
-        _optflow(NULL),
-        _airspeed(NULL),
+        _compass(nullptr),
+        _optflow(nullptr),
+        _airspeed(nullptr),
+        _beacon(nullptr),
         _compass_last_update(0),
         _ins(ins),
         _baro(baro),
@@ -140,7 +142,7 @@ public:
     // this makes initial config easier
     void set_orientation() {
         _ins.set_board_orientation((enum Rotation)_board_orientation.get());
-        if (_compass != NULL) {
+        if (_compass != nullptr) {
             _compass->set_board_orientation((enum Rotation)_board_orientation.get());
         }
     }
@@ -149,8 +151,16 @@ public:
         _airspeed = airspeed;
     }
 
+    void set_beacon(AP_Beacon *beacon) {
+        _beacon = beacon;
+    }
+
     const AP_Airspeed *get_airspeed(void) const {
         return _airspeed;
+    }
+
+    const AP_Beacon *get_beacon(void) const {
+        return _beacon;
     }
 
     const AP_GPS &get_gps() const {
@@ -278,7 +288,7 @@ public:
     // return true if airspeed comes from an airspeed sensor, as
     // opposed to an IMU estimate
     bool airspeed_sensor_enabled(void) const {
-        return _airspeed != NULL && _airspeed->use() && _airspeed->healthy();
+        return _airspeed != nullptr && _airspeed->use() && _airspeed->healthy();
     }
 
     // return a ground vector estimate in meters/second, in North/East order
@@ -512,6 +522,9 @@ protected:
 
     // pointer to airspeed object, if available
     AP_Airspeed     * _airspeed;
+
+    // pointer to beacon object, if available
+    AP_Beacon     * _beacon;
 
     // time in microseconds of last compass update
     uint32_t _compass_last_update;

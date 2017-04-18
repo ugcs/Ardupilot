@@ -1,13 +1,19 @@
 #!/bin/bash
 set -e
+set -x
 
 OPT="/opt"
 BASE_PKGS="build-essential ccache g++ gawk git make wget"
 PYTHON_PKGS="future lxml pymavlink MAVProxy"
 PX4_PKGS="python-argparse openocd flex bison libncurses5-dev \
           autoconf texinfo libftdi-dev zlib1g-dev \
+<<<<<<< HEAD
           zip genromfs python-empy libc6-i386 cmake cmake-data"
 BEBOP_PKGS="g++-arm-linux-gnueabihf"
+=======
+          zip genromfs python-empy cmake cmake-data"
+ARM_LINUX_PKGS="g++-arm-linux-gnueabihf pkg-config-arm-linux-gnueabihf"
+>>>>>>> ardu/Copter-3.5
 SITL_PKGS="libtool libxml2-dev libxslt1-dev python-dev python-pip python-setuptools python-matplotlib python-serial python-scipy python-opencv python-numpy python-pyparsing realpath"
 ASSUME_YES=false
 
@@ -24,6 +30,13 @@ if [ "$yrelease" -ge "$UBUNTU_YEAR" ]; then
     else
         SITL_PKGS+=" python-wxgtk2.8"
     fi
+fi
+
+MACHINE_TYPE=$(uname -m)
+if [ ${MACHINE_TYPE} == 'x86_64' ]; then
+    PX4_PKGS+=" libc6-i386"
+else
+  echo "no extra pkgs for i386"
 fi
 
 # GNU Tools for ARM Embedded Processors
@@ -78,7 +91,7 @@ sudo usermod -a -G dialout $USER
 
 $APT_GET remove modemmanager
 $APT_GET update
-$APT_GET install $BASE_PKGS $SITL_PKGS $PX4_PKGS $BEBOP_PKGS
+$APT_GET install $BASE_PKGS $SITL_PKGS $PX4_PKGS $ARM_LINUX_PKGS
 sudo pip2 -q install -U $PYTHON_PKGS
 
 if [ ! -d $OPT/$ARM_ROOT ]; then

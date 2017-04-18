@@ -37,7 +37,7 @@ using namespace Linux;
 
 void RCInput_115200::init()
 {
-    fd = open(device_path, O_RDWR | O_NONBLOCK);
+    fd = open(device_path, O_RDWR | O_NONBLOCK | O_CLOEXEC);
     if (fd != -1) {
         struct termios options;
 
@@ -87,7 +87,7 @@ void RCInput_115200::_timer_tick(void)
     tv.tv_usec = 0;
 
     // check if any bytes are available
-    if (select(fd+1, &fds, NULL, NULL, &tv) != 1) {
+    if (select(fd+1, &fds, nullptr, nullptr, &tv) != 1) {
         return;
     }
 

@@ -41,9 +41,7 @@ void TimerPollable::on_can_read()
         _wrapper->start_cb();
     }
 
-    if (!_cb()) {
-        _removeme = true;
-    }
+    _cb();
 
     if (_wrapper) {
         _wrapper->end_cb();
@@ -92,6 +90,9 @@ TimerPollable *PollerThread::add_timer(TimerPollable::PeriodicCb cb,
                                        TimerPollable::WrapperCb *wrapper,
                                        uint32_t timeout_usec)
 {
+    if (!_poller) {
+        return nullptr;
+    }
     TimerPollable *p = new TimerPollable(cb, wrapper);
     if (!p || !p->setup_timer(timeout_usec) ||
         !_poller.register_pollable(p, POLLIN)) {
@@ -117,6 +118,10 @@ bool PollerThread::adjust_timer(TimerPollable *p, uint32_t timeout_usec)
 
 void PollerThread::_cleanup_timers()
 {
+    if (!_poller) {
+        return;
+    }
+
     for (auto it = _timers.begin(); it != _timers.end(); it++) {
         TimerPollable *p = *it;
         if (p->_removeme) {
@@ -129,10 +134,29 @@ void PollerThread::_cleanup_timers()
 
 void PollerThread::mainloop()
 {
-    while (true) {
+    if (!_poller) {
+        return;
+    }
+
+    while (!_should_exit) {
         _poller.poll();
         _cleanup_timers();
     }
+
+    _started = false;
+    _should_exit = false;
+}
+
+bool PollerThread::stop()
+{
+    if (!is_started()) {
+        return false;
+    }
+
+    _should_exit = true;
+    _poller.wakeup();
+
+    return true;
 }
 
 }

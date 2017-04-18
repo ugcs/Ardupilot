@@ -18,7 +18,6 @@
 #include <AP_Baro/AP_Baro.h>
 #include <AP_InertialSensor/AP_InertialSensor.h>
 #include <AP_Compass/AP_Compass.h>
-#include <AP_OpticalFlow/AP_OpticalFlow.h>
 #include <AP_Terrain/AP_Terrain.h>
 #include <SITL/SITL.h>
 #include <SITL/SIM_Gimbal.h>
@@ -89,10 +88,9 @@ private:
     void _setup_timer(void);
     void _setup_adc(void);
 
-    float height_agl(void);
+    void set_height_agl(void);
     void _update_barometer(float height);
     void _update_compass(float rollDeg, float pitchDeg, float yawDeg);
-    void _update_flow(void);
 
     void _set_signal_handlers(void) const;
 
@@ -138,7 +136,7 @@ private:
                      double rollRate, 	double pitchRate,double yawRate,	// Local to plane
                      double xAccel, 	double yAccel, 	double zAccel,		// Local to plane
                      float airspeed,	float altitude);
-    void _fdm_input(void);
+    void _check_rc_input(void);
     void _fdm_input_local(void);
     void _output_to_flightgear(void);
     void _simulator_servos(SITL::Aircraft::sitl_input &input);
@@ -164,7 +162,6 @@ private:
     AP_InertialSensor *_ins;
     Scheduler *_scheduler;
     Compass *_compass;
-    OpticalFlow *_optical_flow;
 #if AP_TERRAIN_AVAILABLE
     AP_Terrain *_terrain;
 #endif
@@ -172,12 +169,14 @@ private:
     SocketAPM _sitl_rc_in{true};
     SITL::SITL *_sitl;
     uint16_t _rcout_port;
-    uint16_t _simin_port;
+    uint16_t _rcin_port;
+    uint16_t _fg_view_port;
     float _current;
 
     bool _synthetic_clock_mode;
 
     bool _use_rtscts;
+    bool _use_fg_view;
     
     const char *_fdm_address;
 
