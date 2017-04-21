@@ -549,10 +549,16 @@ AP_GPS::update(void)
 
 
             if (state[i].status > state[primary_instance].status) {
-                // we have a higher status lock, change GPS
-                GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_INFO, "Switched GPS from %d to %d by status\n", primary_instance, i);
-                primary_instance = i;
-                continue;
+
+                //Switch to referenced GPS only if it reaches its highst status. Othewise stay at supporting GPS.
+                if ((i == _referenced_instance - 1 && state[i].status == drivers[i]->highest_supported_status())
+                        || i != (_referenced_instance - 1)) {
+                        // we have a higher status lock, change GPS
+                        GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_INFO, "Switched GPS from %d to %d by status\n", primary_instance, i);
+                        primary_instance = i;
+                        continue;
+                }
+
             }
 
 
