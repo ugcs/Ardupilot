@@ -309,6 +309,12 @@ void Copter::init_ardupilot()
 
     cliSerial->printf("\nReady to FLY ");
 
+    // Change AUX1-6 PWM Freq to 1000 Hz
+    for (int i = 8; i < 14; ++i ) {
+            hal.rcout->enable_ch(i);
+            hal.rcout->set_freq(1 << i, 1000);
+    }
+
     // flag that initialisation has completed
     ap.initialised = true;
 }
