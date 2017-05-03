@@ -626,6 +626,7 @@ def start_vehicle(binary, autotest, opts, stuff, loc):
     cmd.append(binary)
     cmd.append("-S")
     cmd.append("-I" + str(opts.instance))
+    cmd.append("-P SYSID_THISMAV=" + str(opts.instance+1))
     cmd.extend(["--home", loc])
     if opts.wipe_eeprom:
         cmd.append("-w")
