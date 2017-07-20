@@ -50,7 +50,7 @@ bool NavEKF2_core::calcGpsGoodToAlign(void)
 
         if (reference_instance > 0
                 && reference_instance <= gps.num_sensors()
-                && gps.status(reference_instance) < gps.highest_supported_status(reference_instance)) {
+                && gps.status(reference_instance - 1) < gps.highest_supported_status(reference_instance - 1)) {
             return false;
         }
     } else if (gps.status() < gps.highest_supported_status()) {
