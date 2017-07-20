@@ -43,6 +43,21 @@ bool NavEKF2_core::calcGpsGoodToAlign(void)
         magYawResetTimer_ms = imuSampleTime_ms;
     }
 
+    // Status check.
+    AP_GPS gps = _ahrs->get_gps();
+    if (gps.num_sensors() > 1) { // If we have a referenced (more accurate GPS) wait for its highest status.
+        uint8_t reference_instance = gps._referenced_instance;
+
+        if (reference_instance > 0
+                && reference_instance <= gps.num_sensors()
+                && gps.status(reference_instance) < gps.highest_supported_status(reference_instance)) {
+            return false;
+        }
+    } else if (gps.status() < gps.highest_supported_status()) {
+        return false;
+    }
+
+
     // Check for significant change in GPS position if disarmed which indicates bad GPS
     // This check can only be used when the vehicle is stationary
     const struct Location &gpsloc = _ahrs->get_gps().location(); // Current location

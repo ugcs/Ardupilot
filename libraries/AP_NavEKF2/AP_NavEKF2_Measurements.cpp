@@ -602,22 +602,22 @@ void NavEKF2_core::calcFiltGpsHgtOffset()
 
     // calculate the observation variance assuming EKF error relative to datum is independant of GPS observation error
     // when not using GPS as height source
-    //float originHgtObsVar = sq(gpsHgtAccuracy) + P[8][8];
+    float originHgtObsVar = sq(gpsHgtAccuracy) + P[8][8];
 
     // calculate the correction gain
-    //float gain = ekfOriginHgtVar / (ekfOriginHgtVar + originHgtObsVar);
+    float gain = ekfOriginHgtVar / (ekfOriginHgtVar + originHgtObsVar);
 
     // calculate the innovation
-    //float innovation = - stateStruct.position.z - gpsDataDelayed.hgt;
+    float innovation = - stateStruct.position.z - gpsDataDelayed.hgt;
 
     // check the innovation variance ratio
-    //float ratio = sq(innovation) / (ekfOriginHgtVar + originHgtObsVar);
+    float ratio = sq(innovation) / (ekfOriginHgtVar + originHgtObsVar);
 
     // correct the EKF origin and variance estimate if the innovation variance ratio is < 5-sigma
-//    if (ratio < 5.0f) {
-//        EKF_origin.alt -= (int)(100.0f * gain * innovation);
-//        ekfOriginHgtVar -= fmaxf(gain * ekfOriginHgtVar , 0.0f);
-//   }
+    if (ratio < 5.0f) {
+        EKF_origin.alt -= (int)(100.0f * gain * innovation);
+        ekfOriginHgtVar -= fmaxf(gain * ekfOriginHgtVar , 0.0f);
+   }
 }
 
 /********************************************************
