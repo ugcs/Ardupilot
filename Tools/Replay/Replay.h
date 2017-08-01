@@ -62,7 +62,7 @@ public:
     AP_GPS gps;
     Compass compass;
     AP_SerialManager serial_manager;
-    RangeFinder rng {serial_manager};
+    RangeFinder rng {serial_manager, ROTATION_PITCH_270};
     NavEKF2 EKF2{&ahrs, barometer, rng};
     NavEKF3 EKF3{&ahrs, barometer, rng};
     AP_AHRS_NavEKF ahrs {ins, barometer, gps, rng, EKF2, EKF3};
@@ -120,8 +120,6 @@ private:
 
     LogReader logreader{_vehicle.ahrs, _vehicle.ins, _vehicle.barometer, _vehicle.compass, _vehicle.gps, _vehicle.airspeed, _vehicle.dataflash, nottypes};
 
-    FILE *plotf;
-    FILE *plotf2;
     FILE *ekf1f;
     FILE *ekf2f;
     FILE *ekf3f;

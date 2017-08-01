@@ -91,13 +91,7 @@ bool AP_Arming_Copter::rc_calibration_checks(bool display_failure)
 {
     // pre-arm rc checks a prerequisite
     pre_arm_rc_checks(display_failure);
-    if (!copter.ap.pre_arm_rc_check) {
-        if (display_failure) {
-            gcs_send_text(MAV_SEVERITY_CRITICAL,"PreArm: RC not calibrated");
-        }
-        return false;
-    }
-    return true;
+    return copter.ap.pre_arm_rc_check;
 }
 
 bool AP_Arming_Copter::barometer_checks(bool display_failure)
@@ -159,9 +153,10 @@ bool AP_Arming_Copter::fence_checks(bool display_failure)
 {
     #if AC_FENCE == ENABLED
     // check fence is initialised
-    if (!copter.fence.pre_arm_check()) {
-        if (display_failure) {
-            gcs_send_text(MAV_SEVERITY_CRITICAL,"PreArm: check fence");
+    const char *fail_msg = nullptr;
+    if (!copter.fence.pre_arm_check(fail_msg)) {
+        if (display_failure && fail_msg != nullptr) {
+            GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_CRITICAL, "PreArm: %s", fail_msg);
         }
         return false;
     }
@@ -189,8 +184,7 @@ bool AP_Arming_Copter::ins_checks(bool display_failure)
 
 bool AP_Arming_Copter::board_voltage_checks(bool display_failure)
 {
-    #if CONFIG_HAL_BOARD != HAL_BOARD_VRBRAIN
-    #ifndef CONFIG_ARCH_BOARD_PX4FMU_V1
+#if HAL_HAVE_BOARD_VOLTAGE
     // check board voltage
     if ((checks_to_perform == ARMING_CHECK_ALL) || (checks_to_perform & ARMING_CHECK_VOLTAGE)) {
         if (hal.analogin->board_voltage() < BOARD_VOLTAGE_MIN || hal.analogin->board_voltage() > BOARD_VOLTAGE_MAX) {
@@ -200,8 +194,7 @@ bool AP_Arming_Copter::board_voltage_checks(bool display_failure)
             return false;
         }
     }
-    #endif
-    #endif
+#endif
 
     Parameters &g = copter.g;
 
@@ -358,7 +351,7 @@ void AP_Arming_Copter::pre_arm_rc_checks(const bool display_failure)
         // check if radio has been calibrated
         if (!channel->min_max_configured()) {
             if (display_failure) {
-                copter.gcs_send_text_fmt(MAV_SEVERITY_CRITICAL,"PreArm: %s not configured", channel_name);
+                copter.gcs_send_text_fmt(MAV_SEVERITY_CRITICAL,"PreArm: RC %s not configured", channel_name);
             }
             return;
         }
@@ -408,17 +401,17 @@ bool AP_Arming_Copter::pre_arm_gps_checks(bool display_failure)
     }
 
     // check if flight mode requires GPS
-    bool gps_required = copter.mode_requires_GPS(copter.control_mode);
+    bool mode_requires_gps = copter.mode_requires_GPS(copter.control_mode);
 
+    // check if fence requires GPS
+    bool fence_requires_gps = false;
     #if AC_FENCE == ENABLED
-    // if circular fence is enabled we need GPS
-    if ((copter.fence.get_enabled_fences() & AC_FENCE_TYPE_CIRCLE) != 0) {
-        gps_required = true;
-    }
+    // if circular or polygon fence is enabled we need GPS
+    fence_requires_gps = (copter.fence.get_enabled_fences() & (AC_FENCE_TYPE_CIRCLE | AC_FENCE_TYPE_POLYGON)) > 0;
     #endif
 
     // return true if GPS is not required
-    if (!gps_required) {
+    if (!mode_requires_gps && !fence_requires_gps) {
         AP_Notify::flags.pre_arm_gps_check = true;
         return true;
     }
@@ -430,7 +423,12 @@ bool AP_Arming_Copter::pre_arm_gps_checks(bool display_failure)
             if (reason) {
                 GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_CRITICAL, "PreArm: %s", reason);
             } else {
-                gcs_send_text(MAV_SEVERITY_CRITICAL,"PreArm: Need 3D Fix");
+                if (!mode_requires_gps && fence_requires_gps) {
+                    // clarify to user why they need GPS in non-GPS flight mode
+                    gcs_send_text(MAV_SEVERITY_CRITICAL,"PreArm: Fence enabled, need 3D Fix");
+                } else {
+                    gcs_send_text(MAV_SEVERITY_CRITICAL,"PreArm: Need 3D Fix");
+                }
             }
         }
         AP_Notify::flags.pre_arm_gps_check = false;
@@ -464,26 +462,17 @@ bool AP_Arming_Copter::pre_arm_gps_checks(bool display_failure)
         return true;
     }
 
-#if CONFIG_HAL_BOARD != HAL_BOARD_SITL
-    // check GPS configuration has completed
-    uint8_t first_unconfigured = copter.gps.first_unconfigured_gps();
-    if (first_unconfigured != AP_GPS::GPS_ALL_CONFIGURED) {
-        if (display_failure) {
-            GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_CRITICAL,
-                                             "PreArm: GPS %d failing configuration checks",
-                                              first_unconfigured + 1);
-            copter.gps.broadcast_first_configuration_failure_reason();
-        }
-        return false;
-    }
-#endif
-
     // warn about hdop separately - to prevent user confusion with no gps lock
     if (copter.gps.get_hdop() > copter.g.gps_hdop_good) {
         if (display_failure) {
             gcs_send_text(MAV_SEVERITY_CRITICAL,"PreArm: High GPS HDOP");
         }
         AP_Notify::flags.pre_arm_gps_check = false;
+        return false;
+    }
+
+    // call parent gps checks
+    if (!AP_Arming::gps_checks(display_failure)) {
         return false;
     }
 
@@ -512,7 +501,8 @@ bool AP_Arming_Copter::pre_arm_terrain_check(bool display_failure)
 
     // check if terrain following is enabled, using a range finder but RTL_ALT is higher than rangefinder's max range
     // To-Do: modify RTL return path to fly at or above the RTL_ALT and remove this check
-    if ((copter.rangefinder.num_sensors() > 0) && (copter.g.rtl_altitude > copter.rangefinder.max_distance_cm())) {
+
+    if (copter.rangefinder_state.enabled && (copter.g.rtl_altitude > copter.rangefinder.max_distance_cm_orient(ROTATION_PITCH_270))) {
         gcs_send_text(MAV_SEVERITY_CRITICAL,"PreArm: RTL_ALT above rangefinder max range");
         return false;
     }
@@ -583,14 +573,14 @@ bool AP_Arming_Copter::arm_checks(bool display_failure, bool arming_from_gcs)
         //check if accelerometers have calibrated and require reboot
         if (_ins.accel_cal_requires_reboot()) {
             if (display_failure) {
-                gcs_send_text(MAV_SEVERITY_CRITICAL, "PreArm: Accelerometers calibrated requires reboot");
+                gcs_send_text(MAV_SEVERITY_CRITICAL, "PreArm: Accels calibrated requires reboot");
             }
             return false;
         }
 
         if (!_ins.get_accel_health_all()) {
             if (display_failure) {
-                gcs_send_text(MAV_SEVERITY_CRITICAL,"Arm: Accelerometers not healthy");
+                gcs_send_text(MAV_SEVERITY_CRITICAL,"Arm: Accels not healthy");
             }
             return false;
         }
@@ -706,9 +696,10 @@ bool AP_Arming_Copter::arm_checks(bool display_failure, bool arming_from_gcs)
 
     #if AC_FENCE == ENABLED
     // check vehicle is within fence
-    if (!copter.fence.pre_arm_check()) {
-        if (display_failure) {
-            gcs_send_text(MAV_SEVERITY_CRITICAL,"Arm: check fence");
+    const char *fail_msg = nullptr;
+    if (!copter.fence.pre_arm_check(fail_msg)) {
+        if (display_failure && fail_msg != nullptr) {
+            GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_CRITICAL, "Arm: %s", fail_msg);
         }
         return false;
     }

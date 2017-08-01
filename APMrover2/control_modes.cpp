@@ -1,9 +1,11 @@
 #include "Rover.h"
 
+static const int16_t CH_7_PWM_TRIGGER = 1800;
+
 void Rover::read_control_switch()
 {
     static bool switch_debouncer;
-    uint8_t switchPosition = readSwitch();
+    const uint8_t switchPosition = readSwitch();
 
     // If switchPosition = 255 this indicates that the mode control channel input was out of range
     // If we get this value we do not want to change modes.
@@ -47,7 +49,7 @@ void Rover::read_control_switch()
 }
 
 uint8_t Rover::readSwitch(void) {
-    uint16_t pulsewidth = hal.rcin->read(g.mode_channel - 1);
+    const uint16_t pulsewidth = hal.rcin->read(g.mode_channel - 1);
     if (pulsewidth <= 900 || pulsewidth >= 2200) {
         return 255;  // This is an error condition
     }
@@ -74,8 +76,6 @@ void Rover::reset_control_switch()
     oldSwitchPosition = 254;
     read_control_switch();
 }
-
-#define CH_7_PWM_TRIGGER 1800
 
 // read at 10 hz
 // set this to your trainer switch
@@ -118,7 +118,7 @@ void Rover::read_trim_switch()
 
                     // save command
                     if (mission.add_cmd(cmd)) {
-                        hal.console->printf("Learning waypoint %u", (unsigned) mission.num_commands());
+                        hal.console->printf("Learning waypoint %u", static_cast<uint32_t>(mission.num_commands()));
                     }
                     break;
                 }
@@ -138,9 +138,9 @@ void Rover::read_trim_switch()
 
 bool Rover::motor_active()
 {
-    // Check if armed and throttle is not neutral
+    // Check if armed and output throttle servo is not neutral
     if (hal.util->get_soft_armed()) {
-        if (SRV_Channels::get_output_scaled(SRV_Channel::k_throttle) != channel_throttle->get_radio_trim()) {
+        if (SRV_Channels::get_output_scaled(SRV_Channel::k_throttle) != 0) {
             return true;
         }
     }

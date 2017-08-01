@@ -189,7 +189,7 @@ public:
         // 130: Sensor parameters
         //
         k_param_imu = 130,  // unused
-        k_param_altitude_mix,
+        k_param_altitude_mix, // deprecated
 
         k_param_compass_enabled,
         k_param_compass,
@@ -393,7 +393,6 @@ public:
 
     // Estimation
     //
-    AP_Float altitude_mix;
     AP_Int8  alt_control_algorithm;
 
     // Waypoints
@@ -401,7 +400,6 @@ public:
     AP_Int8 waypoint_mode;
     AP_Int16 waypoint_radius;
     AP_Int16 waypoint_max_radius;
-    AP_Int16 loiter_radius;
     AP_Int16 rtl_radius;
 
 #if GEOFENCE_ENABLED == ENABLED
@@ -544,6 +542,12 @@ public:
 
     // whether to enforce acceptance of packets only from sysid_my_gcs
     AP_Int8 sysid_enforce;
+    
+    // ArduSoar parameters
+    SoaringController soaring_controller;
+
+    // dual motor tailsitter rudder to differential thrust scaling: 0-100%
+    AP_Int8 rudd_dt_gain;
 };
 
 extern const AP_Param::Info var_info[];

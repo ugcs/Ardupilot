@@ -1,4 +1,4 @@
-#ArduPilot Project#
+# ArduPilot Project
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/ArduPilot/ardupilot?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
@@ -15,7 +15,10 @@
 
 >>ArduRover (or APMrover2) : [code](https://github.com/ArduPilot/ardupilot/tree/master/APMrover2), [wiki](http://ardupilot.org/rover/index.html)
 
+>>ArduSub (or APM:Sub) : [code](https://github.com/ArduPilot/ardupilot/tree/master/ArduSub), [wiki](http://ardusub.com/)
+
 >>Antenna Tracker : [code](https://github.com/ArduPilot/ardupilot/tree/master/AntennaTracker), [wiki](http://ardupilot.org/antennatracker/index.html)
+
 
 ### User Support & Discussion Forums ###
 >>Support Forum: [http://discuss.ardupilot.org/](http://discuss.ardupilot.org/)
@@ -65,7 +68,7 @@
 >>   - ***Vehicle***: TradHeli
 >> - [Grant Morphett](https://github.com/gmorph):
 >>   - ***Vehicle***: Rover
->> - [Tom Pittenger] (https://github.com/magicrub)
+>> - [Tom Pittenger](https://github.com/magicrub)
 >>   - ***Vehicle***: Plane
 >> - [Paul Riseborough](https://github.com/priseborough)
 >>   - ***Subsystem***: AP_NavEKF2
@@ -75,11 +78,14 @@
 >>   - ***Subsystem***: DataFlash
 >>   - ***Subsystem***: Tools
 >> - [Michael du Breuil](https://github.com/WickedShell)
->>   - ***Subsystem***: uBlox GPS
+>>   - ***Subsystem***: GPS
 >> - [Francisco Ferreira](https://github.com/oxinarf)
 >>   - ***Bug Master***
 >> - [Matthias Badaire](https://github.com/badzz)
 >>   - ***Subsystem***: FRSky
+>> - [Eugene Shamaev](https://github.com/EShamaev)
+>>   - ***Subsystem***: CAN bus
+>>   - ***Subsystem***: UAVCAN
 >> - [Víctor Mayoral Vilches](https://github.com/vmayoral)
 >>   - ***Board***: PXF, Erle-Brain 2, PXFmini
 >> - [Mirko Denecke](https://github.com/mirkix)
@@ -92,9 +98,11 @@
 >>   - ***Board***: Bebop & Bebop 2
 >> - [Pritam Ghanghas](https://github.com/pritamghanghas)
 >>   - ***Board***: Raspilot
->> - [Jonathan Challinger] (https://github.com/3drobotics/ardupilot-solo)
->>   - ***Vehicle***: 3DRobotics Solo ArduPilot maintainer
+>> - [Matt Lawrence](https://github.com/Pedals2Paddles)
+>>   - ***Vehicle***: 3DR Solo & Solo based vehicles
 >> - [Gustavo José de Sousa](https://github.com/guludo)
 >>   - ***Subsystem***: Build system
->> - [Craig Elder] (https://github.com/CraigElder)
+>> - [Craig Elder](https://github.com/CraigElder)
 >>   - ***Administration***: ArduPilot Technical Community Manager
+>> - [Jacob Walser](https://github.com/jaxxzer)
+>>   - ***Vehicle***: Sub

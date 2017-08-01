@@ -88,9 +88,11 @@ const AP_Param::GroupInfo SITL::var_info[] = {
     AP_GROUPINFO("SONAR_POS",     55, SITL,  rngfnd_pos_offset, 0),
     AP_GROUPINFO("FLOW_POS",      56, SITL,  optflow_pos_offset, 0),
     AP_GROUPINFO("ACC2_BIAS",     57, SITL,  accel2_bias, 0),
-    AP_GROUPINFO("GPS2_GLTCH",    58, SITL,  gps2_glitch,  0),
-    AP_GROUPINFO("GPS2_TYPE",     59, SITL,  gps2_type,  SITL::GPS_TYPE_UBLOX),
-    AP_GROUPINFO("GPS2_RND",      60, SITL,  gps2_noise, 0),
+    AP_GROUPINFO("GPS_NOISE",     58, SITL,  gps_noise, 0),
+    AP_GROUPINFO("GP2_GLITCH",    59, SITL,  gps2_glitch,  0),
+    AP_GROUPINFO("ENGINE_FAIL",   60, SITL,  engine_fail,  0),
+    AP_GROUPINFO("GPS2_TYPE",     61, SITL,  gps2_type,  SITL::GPS_TYPE_UBLOX),
+    AP_GROUPINFO("ODOM_ENABLE",   62, SITL,  odom_enable, 0),
     AP_GROUPEND
 };
 
@@ -139,7 +141,11 @@ void SITL::Log_Write_SIMSTATE(DataFlash_Class *DataFlash)
         yaw     : (uint16_t)(wrap_360_cd(yaw*100)),
         alt     : (float)state.altitude,
         lat     : (int32_t)(state.latitude*1.0e7),
-        lng     : (int32_t)(state.longitude*1.0e7)
+        lng     : (int32_t)(state.longitude*1.0e7),
+        q1      : state.quaternion.q1,
+        q2      : state.quaternion.q2,
+        q3      : state.quaternion.q3,
+        q4      : state.quaternion.q4,
     };
     DataFlash->WriteBlock(&pkt, sizeof(pkt));
 }

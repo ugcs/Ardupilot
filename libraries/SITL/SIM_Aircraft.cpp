@@ -22,6 +22,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+
 #ifdef __CYGWIN__
 #include <windows.h>
 #include <time.h>
@@ -350,6 +351,7 @@ void Aircraft::fill_fdm(struct sitl_fdm &fdm)
     fdm.rollDeg  = degrees(r);
     fdm.pitchDeg = degrees(p);
     fdm.yawDeg   = degrees(y);
+    fdm.quaternion.from_rotation_matrix(dcm);
     fdm.airspeed = airspeed_pitot;
     fdm.battery_voltage = battery_voltage;
     fdm.battery_current = battery_current;
@@ -503,6 +505,19 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
             velocity_ef = dcm * v_bf;
             if (velocity_ef.z > 0.0f) {
                 velocity_ef.z = 0.0f;
+            }
+            gyro.zero();
+            use_smoothing = true;
+            break;
+        }
+        case GROUND_BEHAVIOR_TAILSITTER: {
+            // point straight up
+            float r, p, y;
+            dcm.to_euler(&r, &p, &y);
+            dcm.from_euler(0.0f, radians(90), y);
+            // no movement
+            if (accel_earth.z > -1.1*GRAVITY_MSS) {
+                velocity_ef.zero();
             }
             gyro.zero();
             use_smoothing = true;

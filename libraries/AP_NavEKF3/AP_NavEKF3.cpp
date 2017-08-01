@@ -116,7 +116,7 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
 
     // @Param: ENABLE
     // @DisplayName: Enable EKF3
-    // @Description: This enables EKF3. Enabling EKF3 only makes the maths run, it does not mean it will be used for flight control. To use it for flight control set AHRS_EKF_TYPE=3. A reboot or restart will need to be performed after changing the value of EK2_ENABLE for it to take effect.
+    // @Description: This enables EKF3. Enabling EKF3 only makes the maths run, it does not mean it will be used for flight control. To use it for flight control set AHRS_EKF_TYPE=3. A reboot or restart will need to be performed after changing the value of EK3_ENABLE for it to take effect.
     // @Values: 0:Disabled, 1:Enabled
     // @User: Advanced
     AP_GROUPINFO_FLAGS("ENABLE", 0, NavEKF3, _enable, 0, AP_PARAM_FLAG_ENABLE),
@@ -190,7 +190,7 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
 
     // @Param: ALT_SOURCE
     // @DisplayName: Primary altitude sensor source
-    // @Description: This parameter controls the primary height sensor used by the EKF. If the selected option cannot be used, it will default to Baro as the primary height source. Setting 0 will use the baro altitude at all times. Setting 1 uses the range finder and is only available in combination with optical flow navigation (EK2_GPS_TYPE = 3). Setting 2 uses GPS. Setting 3 uses the range beacon data. NOTE - the EK2_RNG_USE_HGT parameter can be used to switch to range-finder when close to the ground.
+    // @Description: This parameter controls the primary height sensor used by the EKF. If the selected option cannot be used, it will default to Baro as the primary height source. Setting 0 will use the baro altitude at all times. Setting 1 uses the range finder and is only available in combination with optical flow navigation (EK3_GPS_TYPE = 3). Setting 2 uses GPS. Setting 3 uses the range beacon data. NOTE - the EK3_RNG_USE_HGT parameter can be used to switch to range-finder when close to the ground.
     // @Values: 0:Use Baro, 1:Use Range Finder, 2:Use GPS, 3:Use Range Beacon
     // @User: Advanced
     AP_GROUPINFO("ALT_SOURCE", 9, NavEKF3, _altSource, 0),
@@ -234,8 +234,8 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
     AP_GROUPINFO("MAG_M_NSE", 13, NavEKF3, _magNoise, MAG_M_NSE_DEFAULT),
 
     // @Param: MAG_CAL
-    // @DisplayName: Magnetometer calibration mode
-    // @Description: EKF_MAG_CAL = 0 enables calibration when airborne and is the default setting for Plane users. EKF_MAG_CAL = 1 enables calibration when manoeuvreing. EKF_MAG_CAL = 2 prevents magnetometer calibration regardless of flight condition, is recommended if the external magnetic field is varying and is the default for rovers. EKF_MAG_CAL = 3 enables calibration when the first in-air field and yaw reset has completed and is the default for copters. EKF_MAG_CAL = 4 enables calibration all the time. This determines when the filter will use the 3-axis magnetometer fusion model that estimates both earth and body fixed magnetic field states. This model is only suitable for use when the external magnetic field environment is stable.
+    // @DisplayName: Magnetometer default fusion mode
+    // @Description: This determines when the filter will use the 3-axis magnetometer fusion model that estimates both earth and body fixed magnetic field states and when it will use a simpler magnetic heading fusion model that does not use magnetic field states. The 3-axis magnetometer fusion is only suitable for use when the external magnetic field environment is stable. EK3_MAG_CAL = 0 uses heading fusion on ground, 3-axis fusion in-flight, and is the default setting for Plane users. EK3_MAG_CAL = 1 uses 3-axis fusion only when manoeuvring. EK3_MAG_CAL = 2 uses heading fusion at all times, is recommended if the external magnetic field is varying and is the default for rovers. EK3_MAG_CAL = 3 uses heading fusion on the ground and 3-axis fusion after the first in-air field and yaw reset has completed, and is the default for copters. EK3_MAG_CAL = 4 uses 3-axis fusion at all times. NOTE : Use of simple heading magnetometer fusion makes vehicle compass calibration and alignment errors harder for the EKF to detect which reduces the sensitivity of the Copter EKF failsafe algorithm. NOTE: The fusion mode can be forced to 2 for specific EKF cores using the EK3_MAG_MASK parameter.
     // @Values: 0:When flying,1:When manoeuvring,2:Never,3:After first climb yaw reset,4:Always
     // @User: Advanced
     AP_GROUPINFO("MAG_CAL", 14, NavEKF3, _magCal, MAG_CAL_DEFAULT),
@@ -384,7 +384,7 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
     // @Param: GPS_CHECK
     // @DisplayName: GPS preflight check
     // @Description: This is a 1 byte bitmap controlling which GPS preflight checks are performed. Set to 0 to bypass all checks. Set to 255 perform all checks. Set to 3 to check just the number of satellites and HDoP. Set to 31 for the most rigorous checks that will still allow checks to pass when the copter is moving, eg launch from a boat.
-    // @Bitmask: 0:NSats,1:HDoP,2:speed error,3:horiz pos error,4:yaw error,5:pos drift,6:vert speed,7:horiz speed
+    // @Bitmask: 0:NSats,1:HDoP,2:speed error,3:position error,4:yaw error,5:pos drift,6:vert speed,7:horiz speed
     // @User: Advanced
     AP_GROUPINFO("GPS_CHECK",    32, NavEKF3, _gpsCheck, 31),
 
@@ -524,6 +524,13 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
     // @Units: m/s/s
     AP_GROUPINFO("ACC_BIAS_LIM", 48, NavEKF3, _accBiasLim, 1.0f),
 
+    // @Param: MAG_MASK
+    // @DisplayName: Bitmask of active EKF cores that will always use heading fusion
+    // @Description: 1 byte bitmap of EKF cores that will disable magnetic field states and use simple magnetic heading fusion at all times. This parameter enables specified cores to be used as a backup for flight into an environment with high levels of external magnetic interference which may degrade the EKF attitude estimate when using 3-axis magnetometer fusion. NOTE : Use of a different magnetometer fusion algorithm on different cores makes unwanted EKF core switches due to magnetometer errors more likely.
+    // @Bitmask: 0:FirstEKF,1:SecondEKF,2:ThirdEKF,3:FourthEKF,4:FifthEKF,5:SixthEKF
+    // @User: Advanced
+    AP_GROUPINFO("MAG_MASK", 49, NavEKF3, _magMask, 0),
+
     AP_GROUPEND
 };
 
@@ -576,7 +583,7 @@ void NavEKF3::check_log_write(void)
         logging.log_compass = false;
     }
     if (logging.log_gps) {
-        DataFlash_Class::instance()->Log_Write_GPS(_ahrs->get_gps(), 0, imuSampleTime_us);
+        DataFlash_Class::instance()->Log_Write_GPS(_ahrs->get_gps(), _ahrs->get_gps().primary_sensor(), imuSampleTime_us);
         logging.log_gps = false;
     }
     if (logging.log_baro) {
@@ -600,9 +607,16 @@ bool NavEKF3::InitialiseFilter(void)
     if (_enable == 0) {
         return false;
     }
+    const AP_InertialSensor &ins = _ahrs->get_ins();
 
     imuSampleTime_us = AP_HAL::micros64();
 
+    // remember expected frame time
+    _frameTimeUsec = 1e6 / ins.get_sample_rate();
+
+    // expected number of IMU frames per prediction
+    _framesPerPrediction = uint8_t((EKF_TARGET_DT / (_frameTimeUsec * 1.0e-6) + 0.5));
+    
     if (core == nullptr) {
 
         // see if we will be doing logging
@@ -612,7 +626,6 @@ bool NavEKF3::InitialiseFilter(void)
         }
 
         // don't run multiple filters for 1 IMU
-        const AP_InertialSensor &ins = _ahrs->get_ins();
         uint8_t mask = (1U<<ins.get_accel_count())-1;
         _imuMask.set(_imuMask.get() & mask);
         
@@ -652,13 +665,18 @@ bool NavEKF3::InitialiseFilter(void)
     // Set up any cores that have been created
     // This specifies the IMU to be used and creates the data buffers
     // If we are unble to set up a core, return false and try again next time the function is called
+    bool core_setup_success = true;
     for (uint8_t core_index=0; core_index<num_cores; core_index++) {
         if (coreSetupRequired[core_index]) {
             coreSetupRequired[core_index] = !core[core_index].setup_core(this, coreImuIndex[core_index], core_index);
-            if(coreSetupRequired[core_index]) {
-                return false;
+            if (coreSetupRequired[core_index]) {
+                core_setup_success = false;
             }
         }
+    }
+    // exit with failure if any cores could not be setup
+    if (!core_setup_success) {
+        return false;
     }
 
     // Set the primary initially to be the lowest index
@@ -693,10 +711,12 @@ void NavEKF3::UpdateFilter(void)
 
     bool statePredictEnabled[num_cores];
     for (uint8_t i=0; i<num_cores; i++) {
-        // if the previous core has only recently finished a new state prediction cycle, then
-        // don't start a new cycle to allow time for fusion operations to complete if the update
-        // rate is higher than 200Hz
-        if ((i > 0) && (core[i-1].getFramesSincePredict() < 2) && (ins.get_sample_rate() > 200)) {
+        // if we have not overrun by more than 3 IMU frames, and we
+        // have already used more than 1/3 of the CPU budget for this
+        // loop then suppress the prediction step. This allows
+        // multiple EKF instances to cooperate on scheduling
+        if (core[i].getFramesSincePredict() < (_framesPerPrediction+3) &&
+            (AP_HAL::micros() - ins.get_last_update_usec()) > _frameTimeUsec/3) {
             statePredictEnabled[i] = false;
         } else {
             statePredictEnabled[i] = true;
@@ -989,7 +1009,7 @@ bool NavEKF3::getOriginLLH(struct Location &loc) const
 // All NED positions calculated by the filter will be relative to this location
 // The origin cannot be set if the filter is in a flight mode (eg vehicle armed)
 // Returns false if the filter has rejected the attempt to set the origin
-bool NavEKF3::setOriginLLH(struct Location &loc)
+bool NavEKF3::setOriginLLH(const Location &loc)
 {
     if (!core) {
         return false;
@@ -1025,10 +1045,11 @@ void NavEKF3::getRotationBodyToNED(Matrix3f &mat) const
 }
 
 // return the quaternions defining the rotation from NED to XYZ (body) axes
-void NavEKF3::getQuaternion(Quaternion &quat) const
+void NavEKF3::getQuaternion(int8_t instance, Quaternion &quat) const
 {
+    if (instance < 0 || instance >= num_cores) instance = primary;
     if (core) {
-        core[primary].getQuaternion(quat);
+        core[instance].getQuaternion(quat);
     }
 }
 
@@ -1093,6 +1114,40 @@ void NavEKF3::getFlowDebug(int8_t instance, float &varFlow, float &gndOffset, fl
     if (core) {
         core[instance].getFlowDebug(varFlow, gndOffset, flowInnovX, flowInnovY, auxInnov, HAGL, rngInnov, range, gndOffsetErr);
     }
+}
+
+/*
+ * Write body frame linear and angular displacement measurements from a visual odometry sensor
+ *
+ * quality is a normalised confidence value from 0 to 100
+ * delPos is the XYZ change in linear position measured in body frame and relative to the inertial reference at timeStamp_ms (m)
+ * delAng is the XYZ angular rotation measured in body frame and relative to the inertial reference at timeStamp_ms (rad)
+ * delTime is the time interval for the measurement of delPos and delAng (sec)
+ * timeStamp_ms is the timestamp of the last image used to calculate delPos and delAng (msec)
+ * posOffset is the XYZ body frame position of the camera focal point (m)
+*/
+void NavEKF3::writeBodyFrameOdom(float quality, const Vector3f &delPos, const Vector3f &delAng, float delTime, uint32_t timeStamp_ms, const Vector3f &posOffset)
+{
+    if (core) {
+        for (uint8_t i=0; i<num_cores; i++) {
+            core[i].writeBodyFrameOdom(quality, delPos, delAng, delTime, timeStamp_ms, posOffset);
+        }
+    }
+}
+
+// return data for debugging body frame odometry fusion
+uint32_t NavEKF3::getBodyFrameOdomDebug(int8_t instance, Vector3f &velInnov, Vector3f &velInnovVar)
+{
+    uint32_t ret = 0;
+    if (instance < 0 || instance >= num_cores) {
+        instance = primary;
+    }
+
+    if (core) {
+        ret = core[instance].getBodyFrameOdomDebug(velInnov, velInnovVar);
+    }
+
+    return ret;
 }
 
 // return data for debugging range beacon fusion
@@ -1438,6 +1493,21 @@ void NavEKF3::updateLaneSwitchPosDownResetData(uint8_t new_primary, uint8_t old_
     pos_down_reset_data.last_primary_change = imuSampleTime_us / 1000;
     pos_down_reset_data.core_changed = true;
 
+}
+
+/*
+  get timing statistics structure
+*/
+void NavEKF3::getTimingStatistics(int8_t instance, struct ekf_timing &timing)
+{
+    if (instance < 0 || instance >= num_cores) {
+        instance = primary;
+    }
+    if (core) {
+        core[instance].getTimingStatistics(timing);
+    } else {
+        memset(&timing, 0, sizeof(timing));
+    }
 }
 
 #endif //HAL_CPU_CLASS

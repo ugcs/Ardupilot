@@ -43,6 +43,7 @@
 #define HAL_BOARD_SUBTYPE_PX4_V2           2001
 #define HAL_BOARD_SUBTYPE_PX4_V4           2002
 #define HAL_BOARD_SUBTYPE_PX4_V3           2003
+#define HAL_BOARD_SUBTYPE_PX4_AEROFC_V1    2004
 
 /* HAL VRBRAIN sub-types, starting at 4000 */
 #define HAL_BOARD_SUBTYPE_VRBRAIN_V45      4000
@@ -70,6 +71,7 @@
 #define HAL_INS_QURT        16
 #define HAL_INS_BBBMINI     17
 #define HAL_INS_AERO        18
+#define HAL_INS_MPU6500     19
 
 /* Barometer driver types */
 #define HAL_BARO_BMP085      1
@@ -109,8 +111,6 @@
 /* CPU classes, used to select if CPU intensive algorithms should be used
  * Note that these are only approximate, not exact CPU speeds. */
 
-/* DEPRECATED: 16Mhz: AVR2560 or similar */
-#define HAL_CPU_CLASS_16   1
 /* 150Mhz: PX4 or similar. Assumes:
  *  - hardware floating point
  *  - tens of kilobytes of memory available */

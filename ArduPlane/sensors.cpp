@@ -39,7 +39,7 @@ void Plane::read_rangefinder(void)
             height = height_above_target();
         } else {
             // otherwise just use the best available baro estimate above home.
-            height = relative_altitude();
+            height = relative_altitude;
         }
         rangefinder.set_estimated_terrain_height(height);
     }
@@ -118,8 +118,7 @@ void Plane::read_battery(void)
     battery.read();
     compass.set_current(battery.current_amps());
 
-    if (!usb_connected && 
-        hal.util->get_soft_armed() &&
+    if (hal.util->get_soft_armed() &&
         battery.exhausted(g.fs_batt_voltage, g.fs_batt_mah)) {
         low_battery_event();
     }
@@ -145,7 +144,7 @@ void Plane::read_receiver_rssi(void)
 void Plane::rpm_update(void)
 {
     rpm_sensor.update();
-    if (rpm_sensor.healthy(0) || rpm_sensor.healthy(1)) {
+    if (rpm_sensor.enabled(0) || rpm_sensor.enabled(1)) {
         if (should_log(MASK_LOG_RC)) {
             DataFlash.Log_Write_RPM(rpm_sensor);
         }
@@ -352,12 +351,12 @@ void Plane::update_sensor_status_flags(void)
     }
 #endif
 
-    if (rangefinder.num_sensors() > 0) {
+    if (rangefinder.has_orientation(ROTATION_PITCH_270)) {
         control_sensors_present |= MAV_SYS_STATUS_SENSOR_LASER_POSITION;
         if (g.rangefinder_landing) {
             control_sensors_enabled |= MAV_SYS_STATUS_SENSOR_LASER_POSITION;
         }
-        if (rangefinder.has_data()) {
+        if (rangefinder.has_data_orient(ROTATION_PITCH_270)) {
             control_sensors_health |= MAV_SYS_STATUS_SENSOR_LASER_POSITION;            
         }
     }

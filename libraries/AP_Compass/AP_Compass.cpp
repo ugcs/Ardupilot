@@ -10,21 +10,28 @@
 #include "AP_Compass_BMM150.h"
 #include "AP_Compass_HIL.h"
 #include "AP_Compass_HMC5843.h"
+#include "AP_Compass_IST8310.h"
 #include "AP_Compass_LSM303D.h"
 #include "AP_Compass_LSM9DS1.h"
-#include "AP_Compass_PX4.h"
 #include "AP_Compass_QURT.h"
 #include "AP_Compass_qflight.h"
 #include "AP_Compass_LIS3MDL.h"
 #include "AP_Compass_AK09916.h"
+#if HAL_WITH_UAVCAN
+#include "AP_Compass_UAVCAN.h"
+#endif
 #include "AP_Compass.h"
 
 extern AP_HAL::HAL& hal;
 
-#if APM_BUILD_TYPE(APM_BUILD_ArduCopter)
+#if APM_BUILD_TYPE(APM_BUILD_ArduCopter) || APM_BUILD_TYPE(APM_BUILD_ArduSub)
 #define COMPASS_LEARN_DEFAULT Compass::LEARN_NONE
 #else
 #define COMPASS_LEARN_DEFAULT Compass::LEARN_INTERNAL
+#endif
+
+#ifndef AP_COMPASS_OFFSETS_MAX_DEFAULT
+#define AP_COMPASS_OFFSETS_MAX_DEFAULT 600
 #endif
 
 const AP_Param::GroupInfo Compass::var_info[] = {
@@ -403,6 +410,14 @@ const AP_Param::GroupInfo Compass::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("CAL_FIT", 30, Compass, _calibration_threshold, AP_COMPASS_CALIBRATION_FITNESS_DEFAULT),
 
+    // @Param: OFFS_MAX
+    // @DisplayName: Compass maximum offset
+    // @Description: This sets the maximum allowed compass offset in calibration and arming checks
+    // @Range: 500 3000
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("OFFS_MAX", 31, Compass, _offset_max, AP_COMPASS_OFFSETS_MAX_DEFAULT),
+    
     AP_GROUPEND
 };
 
@@ -504,6 +519,7 @@ void Compass::_detect_backends(void)
     case AP_BoardConfig::PX4_BOARD_PX4V1:
     case AP_BoardConfig::PX4_BOARD_PIXHAWK:
     case AP_BoardConfig::PX4_BOARD_PHMINI:
+    case AP_BoardConfig::PX4_BOARD_AUAV21:
     case AP_BoardConfig::PX4_BOARD_PH2SLIM:
     case AP_BoardConfig::PX4_BOARD_PIXHAWK2:
     case AP_BoardConfig::PX4_BOARD_PIXRACER: {
@@ -516,7 +532,6 @@ void Compass::_detect_backends(void)
         ADD_BACKEND(AP_Compass_HMC5843::probe(*this, hal.i2c_mgr->get_device(0, HAL_COMPASS_HMC5843_I2C_ADDR),
                                               both_i2c_external, both_i2c_external?ROTATION_ROLL_180:ROTATION_YAW_270),
                     AP_Compass_HMC5843::name, both_i2c_external);
-
 #if !HAL_MINIMIZE_FEATURES
 #if 0
         // lis3mdl - this is disabled for now due to an errata on pixhawk2 GPS unit, pending investigation
@@ -539,6 +554,12 @@ void Compass::_detect_backends(void)
         }
         break;
 
+    case AP_BoardConfig::PX4_BOARD_AEROFC:
+#ifdef HAL_COMPASS_IST8310_I2C_BUS
+        ADD_BACKEND(AP_Compass_IST8310::probe(*this, hal.i2c_mgr->get_device(HAL_COMPASS_IST8310_I2C_BUS, HAL_COMPASS_IST8310_I2C_ADDR),
+                                              ROTATION_PITCH_180_YAW_90), AP_Compass_IST8310::name, true);
+#endif
+        break;
     default:
         break;
     }
@@ -573,6 +594,11 @@ void Compass::_detect_backends(void)
                      AP_Compass_AK8963::name, false);
         break;
 
+    case AP_BoardConfig::PX4_BOARD_AUAV21:
+        ADD_BACKEND(AP_Compass_AK8963::probe_mpu9250(*this, 0, ROTATION_ROLL_180_YAW_90),
+                     AP_Compass_AK8963::name, false);
+        break;
+        
     case AP_BoardConfig::PX4_BOARD_PH2SLIM:
         ADD_BACKEND(AP_Compass_AK8963::probe_mpu9250(*this, 0, ROTATION_YAW_270),
                      AP_Compass_AK8963::name, false);
@@ -581,8 +607,7 @@ void Compass::_detect_backends(void)
     default:
         break;
     }
-    // also add any px4 level drivers (for canbus magnetometers)
-    ADD_BACKEND(AP_Compass_PX4::detect(*this), nullptr, false);
+
 #elif HAL_COMPASS_DEFAULT == HAL_COMPASS_QURT
     ADD_BACKEND(AP_Compass_QURT::detect(*this), nullptr, false);
 #elif HAL_COMPASS_DEFAULT == HAL_COMPASS_RASPILOT
@@ -636,6 +661,11 @@ void Compass::_detect_backends(void)
                  AP_Compass_AK8963::name, false);
     ADD_BACKEND(AP_Compass_HMC5843::probe(*this, hal.i2c_mgr->get_device(HAL_COMPASS_HMC5843_I2C_BUS, HAL_COMPASS_HMC5843_I2C_ADDR), true),
                  AP_Compass_HMC5843::name, true);
+#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BLUE
+    ADD_BACKEND(AP_Compass_AK8963::probe_mpu9250(*this, hal.i2c_mgr->get_device(HAL_COMPASS_AK8963_I2C_BUS, HAL_COMPASS_AK8963_I2C_ADDR)),
+                 AP_Compass_AK8963::name, false);
+    ADD_BACKEND(AP_Compass_HMC5843::probe(*this, hal.i2c_mgr->get_device(HAL_COMPASS_HMC5843_I2C_BUS, HAL_COMPASS_HMC5843_I2C_ADDR), true),
+                 AP_Compass_HMC5843::name, true);
 #elif HAL_COMPASS_DEFAULT == HAL_COMPASS_AK8963_MPU9250
     ADD_BACKEND(AP_Compass_AK8963::probe_mpu9250(*this, 0),
                  AP_Compass_AK8963::name, false);
@@ -663,6 +693,18 @@ void Compass::_detect_backends(void)
                  AP_Compass_LSM9DS1::name, false);
 #else
     #error Unrecognised HAL_COMPASS_TYPE setting
+#endif
+
+#if HAL_WITH_UAVCAN
+    if ((AP_BoardConfig::get_can_enable() != 0) && (hal.can_mgr != nullptr))
+    {
+        if((_backend_count < COMPASS_MAX_BACKEND) && (_compass_count < COMPASS_MAX_INSTANCES))
+        {
+            printf("Creating AP_Compass_UAVCAN\n\r");
+            _backends[_backend_count] = new AP_Compass_UAVCAN(*this);
+            _backend_count++;
+        }
+    }
 #endif
 
     if (_backend_count == 0 ||

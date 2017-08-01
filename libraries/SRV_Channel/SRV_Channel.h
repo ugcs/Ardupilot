@@ -101,6 +101,14 @@ public:
         k_throttle              = 70,
         k_tracker_yaw           = 71,            ///< antennatracker yaw
         k_tracker_pitch         = 72,            ///< antennatracker pitch
+        k_throttleLeft          = 73,
+        k_throttleRight         = 74,
+        k_tiltMotorLeft         = 75,            ///< vectored thrust, left tilt
+        k_tiltMotorRight        = 76,            ///< vectored thrust, right tilt
+        k_elevon_left           = 77,
+        k_elevon_right          = 78,
+        k_vtail_left            = 79,
+        k_vtail_right           = 80,
         k_nr_aux_servo_functions         ///< This must be the last enum value (only add new values _before_ this one)
     } Aux_servo_function_t;
 
@@ -221,6 +229,9 @@ public:
     // set output value for a function channel as a pwm value on the first matching channel
     static void set_output_pwm_first(SRV_Channel::Aux_servo_function_t function, uint16_t value);
 
+    // set output value for a specific function channel as a pwm value
+    static void set_output_pwm_chan(uint8_t chan, uint16_t value);
+    
     // set output value for a function channel as a scaled value. This
     // calls calc_pwm() to also set the pwm value
     static void set_output_scaled(SRV_Channel::Aux_servo_function_t function, int16_t value);
@@ -289,7 +300,7 @@ public:
     static void copy_radio_in_out(SRV_Channel::Aux_servo_function_t function, bool do_input_output=false);
 
     // setup failsafe for an auxiliary channel function, by pwm
-    static void set_failsafe_pwm(SRV_Channel::SRV_Channel::Aux_servo_function_t function, uint16_t pwm);
+    static void set_failsafe_pwm(SRV_Channel::Aux_servo_function_t function, uint16_t pwm);
 
     // setup failsafe for an auxiliary channel function
     static void set_failsafe_limit(SRV_Channel::Aux_servo_function_t function, SRV_Channel::LimitValue limit);
@@ -310,6 +321,9 @@ public:
     // assign and enable auxiliary channels
     static void enable_aux_servos(void);
 
+    // enable channels by mask
+    static void enable_by_mask(uint16_t mask);
+    
     // return the current function for a channel
     static SRV_Channel::Aux_servo_function_t channel_function(uint8_t channel);
 
@@ -330,6 +344,9 @@ public:
 
     // call set_range() on matching channels
     static void set_range(SRV_Channel::Aux_servo_function_t function, uint16_t range);
+
+    // set output refresh frequency on a servo function
+    static void set_rc_frequency(SRV_Channel::Aux_servo_function_t function, uint16_t frequency);
     
     // control pass-thru of channels
     void disable_passthrough(bool disable) {
@@ -350,6 +367,19 @@ public:
     static bool upgrade_parameters(const uint8_t old_keys[14], uint16_t aux_channel_mask, RCMapper *rcmap);
     static void upgrade_motors_servo(uint8_t ap_motors_key, uint8_t ap_motors_idx, uint8_t new_channel);
     
+    static uint32_t get_can_servo_bm(void) {
+        if(p_can_servo_bm != nullptr)
+            return *p_can_servo_bm;
+        else
+            return 0;
+    }
+    static uint32_t get_can_esc_bm(void) {
+        if(p_can_esc_bm != nullptr)
+            return *p_can_esc_bm;
+        else
+            return 0;
+    }
+
 private:
     struct {
         bool k_throttle_reversible:1;
@@ -380,4 +410,9 @@ private:
     static bool passthrough_disabled(void) {
         return disabled_passthrough;
     }
+
+    AP_Int32 can_servo_bm;
+    AP_Int32 can_esc_bm;
+    static AP_Int32 *p_can_servo_bm;
+    static AP_Int32 *p_can_esc_bm;
 };

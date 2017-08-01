@@ -79,6 +79,9 @@
 
 // Local modules
 #include "defines.h"
+#if ADVANCED_FAILSAFE == ENABLED
+#include "afs_rover.h"
+#endif
 #include "Parameters.h"
 #include "GCS_Mavlink.h"
 
@@ -94,6 +97,9 @@ public:
     friend class Parameters;
     friend class ParametersG2;
     friend class AP_Arming_Rover;
+#if ADVANCED_FAILSAFE == ENABLED
+    friend class AP_AdvancedFailsafe_Rover;
+#endif
 
     Rover(void);
 
@@ -136,7 +142,7 @@ private:
     AP_Baro barometer;
     Compass compass;
     AP_InertialSensor ins;
-    RangeFinder sonar { serial_manager };
+    RangeFinder sonar { serial_manager, ROTATION_NONE };
     AP_Button button;
 
     // flight modes convenience array
@@ -179,7 +185,9 @@ private:
     // GCS handling
     AP_SerialManager serial_manager;
     const uint8_t num_gcs;
-    GCS_MAVLINK_Rover gcs[MAVLINK_COMM_NUM_BUFFERS];
+    GCS_MAVLINK_Rover gcs_chan[MAVLINK_COMM_NUM_BUFFERS];
+    GCS _gcs;  // avoid using this; use gcs()
+    GCS &gcs() { return _gcs; }
 
     // relay support
     AP_Relay relay;
@@ -315,6 +323,9 @@ private:
     // For example in a delay command the condition_start records that start time for the delay
     int32_t condition_start;
 
+    // Use for stoping navigation in auto mode and do rotation on spot.
+    bool do_auto_rotation;
+
     // 3D Location vectors
     // Location structure defined in AP_Common
     // The home location used for RTL.  The location is set when we first get stable GPS lock
@@ -351,6 +362,9 @@ private:
 
     // set if we are driving backwards
     bool in_reverse;
+
+    // set if the users asks for auto reverse
+    bool in_auto_reverse;
 
     static const AP_Scheduler::Task scheduler_tasks[];
 
@@ -436,6 +450,7 @@ private:
     void Log_Write_Control_Tuning();
     void Log_Write_Nav_Tuning();
     void Log_Write_Sonar();
+    void Log_Write_Beacon();
     void Log_Write_Current();
     void Log_Write_Attitude();
     void Log_Write_RC(void);
@@ -465,6 +480,7 @@ private:
     bool verify_RTL();
     bool verify_wait_delay();
     bool verify_within_distance();
+    bool verify_yaw();
 #if CAMERA == ENABLED
     void do_take_picture();
     void log_picture();
@@ -490,6 +506,8 @@ private:
     void trim_radio();
     void init_barometer(bool full_calibration);
     void init_sonar(void);
+    void init_beacon();
+    void update_beacon();
     void read_battery(void);
     void read_receiver_rssi(void);
     void read_sonars(void);
@@ -534,6 +552,7 @@ private:
     bool verify_loiter_time(const AP_Mission::Mission_Command& cmd);
     void do_wait_delay(const AP_Mission::Mission_Command& cmd);
     void do_within_distance(const AP_Mission::Mission_Command& cmd);
+    void do_yaw(const AP_Mission::Mission_Command& cmd);
     void do_change_speed(const AP_Mission::Mission_Command& cmd);
     void do_set_home(const AP_Mission::Mission_Command& cmd);
 #if CAMERA == ENABLED
@@ -550,10 +569,14 @@ private:
     void update_home();
     void accel_cal_update(void);
     void nav_set_yaw_speed();
+    bool do_yaw_rotation();
     bool in_stationary_loiter(void);
     void set_loiter_active(const AP_Mission::Mission_Command& cmd);
     void Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target, const Vector3f& vel_target);
     void crash_check();
+#if ADVANCED_FAILSAFE == ENABLED
+    void afs_fs_check(void);
+#endif
 
 public:
     bool print_log_menu(void);

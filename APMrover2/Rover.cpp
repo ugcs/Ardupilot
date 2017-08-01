@@ -27,7 +27,7 @@ Rover::Rover(void) :
     DataFlash{FIRMWARE_STRING},
     in_log_download(false),
     modes(&g.mode1),
-    L1_controller(ahrs),
+    L1_controller(ahrs, nullptr),
     nav_controller(&L1_controller),
     steerController(ahrs),
     mission(ahrs,
@@ -49,6 +49,7 @@ Rover::Rover(void) :
     frsky_telemetry(ahrs, battery, sonar),
 #endif
     home(ahrs.get_home()),
-    G_Dt(0.02)
+    do_auto_rotation(false),
+    G_Dt(0.02f)
 {
 }

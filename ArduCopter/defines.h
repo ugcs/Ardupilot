@@ -70,6 +70,7 @@ enum aux_sw_func {
     AUXSW_AVOID_ADSB =          38,  // enable AP_Avoidance library
     AUXSW_PRECISION_LOITER =    39,  // enable precision loiter
     AUXSW_AVOID_PROXIMITY =     40,  // enable object avoidance using proximity sensors (ie. horizontal lidar)
+    AUXSW_ARMDISARM =           41,  // arm or disarm vehicle
     AUXSW_SWITCH_MAX,
 };
 
@@ -317,7 +318,6 @@ enum DevOptions {
 #define LOG_GUIDEDTARGET_MSG            0x22
 #define LOG_THROW_MSG                   0x23
 #define LOG_PROXIMITY_MSG               0x24
-#define LOG_BEACON_MSG                  0x25
 
 #define MASK_LOG_ATTITUDE_FAST          (1<<0)
 #define MASK_LOG_ATTITUDE_MED           (1<<1)
@@ -392,6 +392,7 @@ enum DevOptions {
 #define DATA_AVOIDANCE_ADSB_DISABLE         64
 #define DATA_AVOIDANCE_PROXIMITY_ENABLE     65
 #define DATA_AVOIDANCE_PROXIMITY_DISABLE    66
+#define DATA_GPS_PRIMARY_CHANGED            67
 
 // Centi-degrees to radians
 #define DEGX100 5729.57795f

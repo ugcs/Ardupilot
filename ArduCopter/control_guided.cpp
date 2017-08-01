@@ -87,12 +87,9 @@ void Copter::guided_pos_control_start()
     // initialise waypoint and spline controller
     wp_nav->wp_and_spline_init();
 
-    // initialise wpnav to stopping point at current altitude
-    // To-Do: set to current location if disarmed?
-    // To-Do: set to stopping point altitude?
+    // initialise wpnav to stopping point
     Vector3f stopping_point;
-    stopping_point.z = inertial_nav.get_altitude();
-    wp_nav->get_wp_stopping_point_xy(stopping_point);
+    wp_nav->get_wp_stopping_point(stopping_point);
 
     // no need to check return status because terrain data is not used
     wp_nav->set_wp_destination(stopping_point, false);
@@ -107,7 +104,12 @@ void Copter::guided_vel_control_start()
     // set guided_mode to velocity controller
     guided_mode = Guided_Velocity;
 
-    // initialize vertical speeds and leash lengths
+    // initialise horizontal speed, acceleration and jerk
+    pos_control->set_speed_xy(wp_nav->get_speed_xy());
+    pos_control->set_accel_xy(wp_nav->get_wp_acceleration());
+    pos_control->set_jerk_xy_to_default();
+
+    // initialize vertical speeds and acceleration
     pos_control->set_speed_z(-g.pilot_velocity_z_max, g.pilot_velocity_z_max);
     pos_control->set_accel_z(g.pilot_accel_z);
 
@@ -333,17 +335,21 @@ void Copter::guided_run()
 //      called by guided_run at 100hz or more
 void Copter::guided_takeoff_run()
 {
-    // if not auto armed or motors not enabled set throttle to zero and exit immediately
+    // if not auto armed or motor interlock not enabled set throttle to zero and exit immediately
     if (!motors->armed() || !ap.auto_armed || !motors->get_interlock()) {
+        // initialise wpnav targets
+        wp_nav->shift_wp_origin_to_current_pos();
 #if FRAME_CONFIG == HELI_FRAME  // Helicopters always stabilize roll/pitch/yaw
         // call attitude controller
         attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(0, 0, 0, get_smoothing_gain());
         attitude_control->set_throttle_out(0,false,g.throttle_filt);
-#else
+#else   // multicopters do not stabilize roll/pitch/yaw when disarmed
         motors->set_desired_spool_state(AP_Motors::DESIRED_SPIN_WHEN_ARMED);
-        // multicopters do not stabilize roll/pitch/yaw when disarmed
+        // reset attitude control targets
         attitude_control->set_throttle_out_unstabilized(0,true,g.throttle_filt);
 #endif
+        // clear i term when we're taking off
+        set_throttle_takeoff();
         return;
     }
 
@@ -353,6 +359,18 @@ void Copter::guided_takeoff_run()
         // get pilot's desired yaw rate
         target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
     }
+
+#if FRAME_CONFIG == HELI_FRAME
+    // helicopters stay in landed state until rotor speed runup has finished
+    if (motors->rotor_runup_complete()) {
+        set_land_complete(false);
+    } else {
+        // initialise wpnav targets
+        wp_nav->shift_wp_origin_to_current_pos();
+    }
+#else
+    set_land_complete(false);
+#endif
 
     // set motors to full range
     motors->set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);

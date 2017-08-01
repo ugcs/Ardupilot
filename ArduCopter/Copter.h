@@ -91,6 +91,7 @@
 #include <AC_InputManager/AC_InputManager_Heli.h>   // Heli specific pilot input handling library
 #include <AP_Button/AP_Button.h>
 #include <AP_Arming/AP_Arming.h>
+#include <AP_VisualOdom/AP_VisualOdom.h>
 
 // Configuration
 #include "defines.h"
@@ -192,7 +193,7 @@ private:
     Compass compass;
     AP_InertialSensor ins;
 
-    RangeFinder rangefinder {serial_manager};
+    RangeFinder rangefinder {serial_manager, ROTATION_PITCH_270};
     struct {
         bool enabled:1;
         bool alt_healthy:1; // true if we can trust the altitude from the rangefinder
@@ -238,7 +239,9 @@ private:
     AP_SerialManager serial_manager;
     static const uint8_t num_gcs = MAVLINK_COMM_NUM_BUFFERS;
 
-    GCS_MAVLINK_Copter gcs[MAVLINK_COMM_NUM_BUFFERS];
+    GCS_MAVLINK_Copter gcs_chan[MAVLINK_COMM_NUM_BUFFERS];
+    GCS _gcs; // avoid using this; use gcs()
+    GCS &gcs() { return _gcs; }
 
     // User variables
 #ifdef USERHOOK_VARIABLES
@@ -271,6 +274,7 @@ private:
             uint8_t land_repo_active        : 1; // 22      // true if the pilot is overriding the landing position
             uint8_t motor_interlock_switch  : 1; // 23      // true if pilot is requesting motor interlock enable
             uint8_t in_arming_delay         : 1; // 24      // true while we are armed but waiting to spin motors
+            uint8_t initialised_params      : 1; // 25      // true when the all parameters have been initialised. we cannot send parameters to the GCS until this is done
         };
         uint32_t value;
     } ap;
@@ -329,16 +333,18 @@ private:
     struct {
         uint8_t baro        : 1;    // true if baro is healthy
         uint8_t compass     : 1;    // true if compass is healthy
+        uint8_t primary_gps;        // primary gps index
     } sensor_health;
 
     // Motor Output
 #if FRAME_CONFIG == HELI_FRAME
- #define MOTOR_CLASS AP_MotorsHeli_Single
+ #define MOTOR_CLASS AP_MotorsHeli
 #else
  #define MOTOR_CLASS AP_MotorsMulticopter
 #endif
 
     MOTOR_CLASS *motors;
+    const struct AP_Param::GroupInfo *motors_var_info;
 
     // GPS variables
     // Sometimes we need to remove the scaling for distance calcs
@@ -399,9 +405,6 @@ private:
 
     // Stores initial bearing when armed - initial simple bearing is modified in super simple mode so not suitable
     int32_t initial_armed_bearing;
-
-    // Throttle variables
-    int16_t desired_climb_rate;          // pilot desired climb rate - for logging purposes only
 
     // Loiter control
     uint16_t loiter_time_max;                // How long we should stay in Loiter Mode for mission scripting (time in seconds)
@@ -586,7 +589,15 @@ private:
 
     // last valid RC input time
     uint32_t last_radio_update_ms;
-    
+
+    // last esc calibration notification update
+    uint32_t esc_calibration_notify_update_ms;
+
+#if VISUAL_ODOMETRY_ENABLED == ENABLED
+    // last visual odometry update time
+    uint32_t visual_odom_last_update_ms;
+#endif
+
     // Top-level logic
     // setup the var_info table
     AP_Param param_loader;
@@ -631,6 +642,7 @@ private:
     void update_mount();
     void update_trigger(void);
     void update_batt_compass(void);
+    void fourhundred_hz_logging();
     void ten_hz_logging_loop();
     void twentyfive_hz_logging();
     void three_hz_loop();
@@ -691,6 +703,8 @@ private:
     void stats_update();
     void init_beacon();
     void update_beacon();
+    void init_visual_odom();
+    void update_visual_odom();
     void send_pid_tuning(mavlink_channel_t chan);
     void gcs_send_message(enum ap_message id);
     void gcs_send_mission_item_reached_message(uint16_t mission_index);
@@ -706,6 +720,7 @@ private:
     void Log_Write_Control_Tuning();
     void Log_Write_Performance();
     void Log_Write_Attitude();
+    void Log_Write_EKF_POS();
     void Log_Write_MotBatt();
     void Log_Write_Event(uint8_t id);
     void Log_Write_Data(uint8_t id, int32_t value);
@@ -820,6 +835,7 @@ private:
     void autotune_updating_p_up(float &tune_p, float tune_p_max, float tune_p_step_ratio, float target, float measurement_max);
     void autotune_updating_p_up_d_down(float &tune_d, float tune_d_min, float tune_d_step_ratio, float &tune_p, float tune_p_min, float tune_p_max, float tune_p_step_ratio, float target, float measurement_min, float measurement_max);
     void autotune_twitching_measure_acceleration(float &rate_of_change, float rate_measurement, float &rate_measurement_max);
+    void autotune_get_poshold_attitude(float &roll_cd, float &pitch_cd, float &yaw_cd);
     void avoidance_adsb_update(void);
 #if ADVANCED_FAILSAFE == ENABLED
     void afs_fs_check(void);
@@ -871,7 +887,7 @@ private:
     bool loiter_init(bool ignore_checks);
     void loiter_run();
 #if PRECISION_LANDING == ENABLED
-    bool do_precision_loiter() const;
+    bool do_precision_loiter();
     void precision_loiter_xy();
     void set_precision_loiter_enabled(bool value) { _precision_loiter_enabled = value; }
     bool _precision_loiter_enabled;
@@ -929,6 +945,7 @@ private:
     void esc_calibration_startup_check();
     void esc_calibration_passthrough();
     void esc_calibration_auto();
+    void esc_calibration_notify();
     bool should_disarm_on_failsafe();
     void failsafe_radio_on_event();
     void failsafe_radio_off_event();

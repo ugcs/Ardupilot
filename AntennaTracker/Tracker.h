@@ -99,7 +99,6 @@ private:
 
     // has a log download started?
     bool in_log_download = false;
-    bool logging_started = false;
     DataFlash_Class DataFlash;
 
     AP_GPS gps;
@@ -110,7 +109,7 @@ private:
 
     AP_InertialSensor ins;
 
-    RangeFinder rng {serial_manager};
+    RangeFinder rng {serial_manager, ROTATION_NONE};
 
 // Inertial Navigation EKF
 #if AP_AHRS_NAVEKF_AVAILABLE
@@ -139,7 +138,9 @@ private:
 
     AP_SerialManager serial_manager;
     const uint8_t num_gcs = MAVLINK_COMM_NUM_BUFFERS;
-    GCS_MAVLINK_Tracker gcs[MAVLINK_COMM_NUM_BUFFERS];
+    GCS_MAVLINK_Tracker gcs_chan[MAVLINK_COMM_NUM_BUFFERS];
+    GCS _gcs; // avoid using this; use GCS::instance()
+    GCS &gcs() { return _gcs; }
 
     AP_BoardConfig BoardConfig;
 

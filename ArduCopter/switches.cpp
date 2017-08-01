@@ -191,7 +191,6 @@ void Copter::init_aux_switch_function(int8_t ch_option, uint8_t ch_flag)
         case AUXSW_MISSION_RESET:
         case AUXSW_ATTCON_FEEDFWD:
         case AUXSW_ATTCON_ACCEL_LIM:
-        case AUXSW_LANDING_GEAR:
         case AUXSW_MOTOR_ESTOP:
         case AUXSW_MOTOR_INTERLOCK:
         case AUXSW_AVOID_ADSB:
@@ -307,7 +306,7 @@ void Copter::do_aux_switch_function(int8_t ch_function, uint8_t ch_flag)
         case AUXSW_RANGEFINDER:
             // enable or disable the rangefinder
 #if RANGEFINDER_ENABLED == ENABLED
-            if ((ch_flag == AUX_SWITCH_HIGH) && (rangefinder.num_sensors() >= 1)) {
+            if ((ch_flag == AUX_SWITCH_HIGH) && rangefinder.has_orientation(ROTATION_PITCH_270)) {
                 rangefinder_state.enabled = true;
             } else {
                 rangefinder_state.enabled = false;
@@ -492,13 +491,10 @@ void Copter::do_aux_switch_function(int8_t ch_function, uint8_t ch_flag)
        case AUXSW_LANDING_GEAR:
             switch (ch_flag) {
                 case AUX_SWITCH_LOW:
-                    landinggear.set_cmd_mode(LandingGear_Deploy);
-                    break;
-                case AUX_SWITCH_MIDDLE:
-                    landinggear.set_cmd_mode(LandingGear_Auto);
+                    landinggear.set_position(AP_LandingGear::LandingGear_Deploy);
                     break;
                 case AUX_SWITCH_HIGH:
-                    landinggear.set_cmd_mode(LandingGear_Retract);
+                    landinggear.set_position(AP_LandingGear::LandingGear_Retract);
                     break;
             }
             break;
@@ -586,6 +582,17 @@ void Copter::do_aux_switch_function(int8_t ch_function, uint8_t ch_flag)
                     break;
             }
 #endif
+            break;
+        case AUXSW_ARMDISARM:
+            // arm or disarm the vehicle
+            switch (ch_flag) {
+            case AUX_SWITCH_HIGH:
+                init_arm_motors(false);
+                break;
+            case AUX_SWITCH_LOW:
+                init_disarm_motors();
+                break;
+            }
             break;
     }
 }

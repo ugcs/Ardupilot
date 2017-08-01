@@ -7,7 +7,7 @@
 #include <AP_Param/AP_Param.h>
 #include <AP_Math/AP_Math.h>
 #include <AP_InertialSensor/AP_InertialSensor.h>
-#include <AP_AHRS/AP_AHRS.h>
+#include <AP_AHRS/AP_AHRS_View.h>
 #include <AP_Motors/AP_Motors.h>
 #include <AC_PID/AC_PID.h>
 #include <AC_PID/AC_P.h>
@@ -44,7 +44,7 @@
 
 class AC_AttitudeControl {
 public:
-    AC_AttitudeControl( AP_AHRS &ahrs,
+    AC_AttitudeControl( AP_AHRS_View &ahrs,
                         const AP_Vehicle::MultiCopter &aparm,
                         AP_Motors& motors,
                         float dt) :
@@ -81,7 +81,7 @@ public:
     void set_accel_roll_max(float accel_roll_max) { _accel_roll_max = accel_roll_max; }
 
     // Sets and saves the roll acceleration limit in centidegrees/s/s
-    void save_accel_roll_max(float accel_roll_max) { _accel_roll_max = accel_roll_max; _accel_roll_max.save(); }
+    void save_accel_roll_max(float accel_roll_max) { _accel_roll_max.set_and_save(accel_roll_max); }
 
     // Sets the pitch acceleration limit in centidegrees/s/s
     float get_accel_pitch_max() { return _accel_pitch_max; }
@@ -90,7 +90,7 @@ public:
     void set_accel_pitch_max(float accel_pitch_max) { _accel_pitch_max = accel_pitch_max; }
 
     // Sets and saves the pitch acceleration limit in centidegrees/s/s
-    void save_accel_pitch_max(float accel_pitch_max) { _accel_pitch_max = accel_pitch_max; _accel_pitch_max.save(); }
+    void save_accel_pitch_max(float accel_pitch_max) { _accel_pitch_max.set_and_save(accel_pitch_max); }
 
     // Gets the yaw acceleration limit in centidegrees/s/s
     float get_accel_yaw_max() { return _accel_yaw_max; }
@@ -99,7 +99,7 @@ public:
     void set_accel_yaw_max(float accel_yaw_max) { _accel_yaw_max = accel_yaw_max; }
 
     // Sets and saves the yaw acceleration limit in centidegrees/s/s
-    void save_accel_yaw_max(float accel_yaw_max) { _accel_yaw_max = accel_yaw_max; _accel_yaw_max.save(); }
+    void save_accel_yaw_max(float accel_yaw_max) { _accel_yaw_max.set_and_save(accel_yaw_max); }
 
     // Ensure attitude controller have zero errors to relax rate controller output
     void relax_attitude_controllers();
@@ -127,6 +127,9 @@ public:
 
     // Command an angular velocity with angular velocity feedforward and smoothing
     virtual void input_rate_bf_roll_pitch_yaw(float roll_rate_bf_cds, float pitch_rate_bf_cds, float yaw_rate_bf_cds);
+
+    // Command an angular step (i.e change) in body frame angle
+    virtual void input_angle_step_bf_roll_pitch_yaw(float roll_angle_step_bf_cd, float pitch_angle_step_bf_cd, float yaw_angle_step_bf_cd);
 
     // Run angular velocity controller and send outputs to the motors
     virtual void rate_controller_run() = 0;
@@ -246,6 +249,8 @@ public:
     virtual void set_throttle_mix_min() {}
     virtual void set_throttle_mix_man() {}
     virtual void set_throttle_mix_max() {}
+    virtual void set_throttle_mix_value(float value) {}
+    virtual float get_throttle_mix(void) const { return 0; }
 
     // enable use of flybass passthrough on heli
     virtual void use_flybar_passthrough(bool passthrough, bool tail_passthrough) {}
@@ -268,13 +273,13 @@ protected:
     Vector3f update_ang_vel_target_from_att_error(Vector3f attitude_error_rot_vec_rad);
 
     // Run the roll angular velocity PID controller and return the output
-    float rate_target_to_motor_roll(float rate_target_rads);
+    float rate_target_to_motor_roll(float rate_actual_rads, float rate_target_rads);
 
     // Run the pitch angular velocity PID controller and return the output
-    float rate_target_to_motor_pitch(float rate_target_rads);
+    float rate_target_to_motor_pitch(float rate_actual_rads, float rate_target_rads);
 
     // Run the yaw angular velocity PID controller and return the output
-    virtual float rate_target_to_motor_yaw(float rate_target_rads);
+    virtual float rate_target_to_motor_yaw(float rate_actual_rads, float rate_target_rads);
 
     // Return angle in radians to be added to roll angle. Used by heli to counteract
     // tail rotor thrust in hover. Overloaded by AC_Attitude_Heli to return angle.
@@ -369,7 +374,7 @@ protected:
     float               _throttle_rpy_mix;
 
     // References to external libraries
-    const AP_AHRS&      _ahrs;
+    const AP_AHRS_View&  _ahrs;
     const AP_Vehicle::MultiCopter &_aparm;
     AP_Motors&          _motors;
 

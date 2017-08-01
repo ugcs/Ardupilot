@@ -55,7 +55,7 @@ AP_OpticalFlow_PX4Flow *AP_OpticalFlow_PX4Flow::detect(OpticalFlow &_frontend)
  */
 bool AP_OpticalFlow_PX4Flow::scan_buses(void)
 {
-    for (uint8_t bus=0; bus<2; bus++) {
+    for (uint8_t bus = 0; bus < 3; bus++) {
 #ifdef HAL_OPTFLOW_PX4FLOW_I2C_BUS
         // only one bus from HAL
         if (bus != HAL_OPTFLOW_PX4FLOW_I2C_BUS) {
@@ -66,7 +66,7 @@ bool AP_OpticalFlow_PX4Flow::scan_buses(void)
         if (!tdev) {
             continue;
         }
-        if (!tdev->get_semaphore()->take(0)) {
+        if (!tdev->get_semaphore()->take(HAL_SEMAPHORE_BLOCK_FOREVER)) {
             continue;
         }
         struct i2c_integral_frame frame;

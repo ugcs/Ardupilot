@@ -128,7 +128,7 @@ skip_board_waf() {
 skip_frame() {
     sboard=$1
     sframe=$2
-    if [ "$sboard" = "bebop" ]; then
+    if [ "$sboard" = "bebop" -o "$sboard" = "aerofc-v1" ]; then
         if [ "$sframe" != "quad" -a "$sframe" != "none" ]; then
             return 0
         fi
@@ -305,7 +305,7 @@ build_arducopter() {
 
     checkout ArduCopter "latest" "" ""
     
-    for b in erlebrain2 navio navio2 pxf pxfmini bebop; do
+    for b in erlebrain2 navio navio2 pxf pxfmini bebop aerofc-v1; do
         echo "Building board: $b"
         for f in $frames; do
             if [ "$f" = "none" ]; then
@@ -325,13 +325,18 @@ build_arducopter() {
             skip_build $tag $ddir && continue
             skip_frame $b $f && continue
             options=$(board_options $b)
-            waf configure --board $b $options --out $BUILDROOT clean \
-                    build --targets bin/arducopter$framesuffix || {
+            waf configure --board $b $options --out $BUILDROOT && \
+                waf clean && \
+                waf build --targets bin/arducopter$framesuffix || {
                 echo "Failed build of ArduCopter $b$framesuffix $tag"
                 error_count=$((error_count+1))
                 continue
             }
-            copyit $BUILDROOT/$b/bin/arducopter$framesuffix $ddir $tag "ArduCopter"
+            extension=""
+            if [ -f $BUILDROOT/$b/bin/arducopter${framesuffix}.px4 ]; then
+                extension=".px4"
+            fi
+            copyit $BUILDROOT/$b/bin/arducopter${framesuffix}${extension} $ddir $tag "ArduCopter"
             touch $binaries/Copter/$tag
         done
     done
@@ -403,7 +408,7 @@ build_rover() {
             error_count=$((error_count+1))
             continue
         }
-        copyit $BUILDROOT/$b/bin/ardurover $ddir $tag "APMRover2"
+        copyit $BUILDROOT/$b/bin/ardurover $ddir $tag "APMrover2"
         touch $binaries/Rover/$tag
     done
     pushd APMrover2
@@ -501,6 +506,52 @@ build_antennatracker() {
     popd
 }
 
+# build ardusub binaries
+build_ardusub() {
+    tag="$1"
+    echo "Building ArduSub $tag binaries from $(pwd)"
+    for b in erlebrain2 navio navio2 pxf pxfmini; do
+        echo "Building ArduSub $tag $b binaries"
+        checkout ArduSub $tag $b "" || continue
+        skip_board_waf $b && continue
+        ddir=$binaries/Sub/$hdate/$b
+        skip_build $tag $ddir && continue
+        waf configure --board $b --out $BUILDROOT clean sub || {
+            echo "Failed build of ArduSub $b $tag"
+            error_count=$((error_count+1))
+            continue
+        }
+        copyit $BUILDROOT/$b/bin/ardusub $ddir $tag "ArduSub"
+        touch $binaries/Sub/$tag
+    done
+    pushd ArduSub
+    echo "Building ArduSub $tag PX4 binaries"
+    ddir=$binaries/Sub/$hdate/PX4
+    checkout ArduSub $tag PX4 "" || {
+        checkout ArduSub "latest" "" ""
+        popd
+        return
+    }
+    skip_build $tag $ddir || {
+        for v in v1 v2 v3 v4; do
+            make px4-clean
+            make px4-$v -j2 || {
+                echo "Failed build of ArduSub PX4 $tag"
+                error_count=$((error_count+1))
+                checkout ArduSub "latest" "" ""
+                popd
+                return
+            }
+        done
+        copyit ArduSub-v1.px4 $binaries/Sub/$hdate/PX4 $tag &&
+        copyit ArduSub-v2.px4 $binaries/Sub/$hdate/PX4 $tag &&
+        test ! -f ArduSub-v3.px4 || copyit ArduSub-v3.px4 $binaries/Sub/$hdate/PX4 $tag &&
+        test ! -f ArduSub-v4.px4 || copyit ArduSub-v4.px4 $binaries/Sub/$hdate/PX4 $tag 
+    }
+    checkout ArduSub "latest" "" ""
+    popd
+}
+
 [ -f .gitmodules ] && {
     git submodule init
     git submodule update --recursive -f
@@ -510,7 +561,7 @@ export BUILDROOT="$TMPDIR/binaries.build"
 rm -rf $BUILDROOT
 
 # make sure PX4 is rebuilt from scratch
-for d in ArduPlane ArduCopter APMrover2 AntennaTracker; do
+for d in ArduPlane ArduCopter APMrover2 AntennaTracker ArduSub; do
          pushd $d
          make px4-clean || exit 1
          popd
@@ -521,6 +572,7 @@ for build in stable beta latest; do
     build_arducopter $build
     build_rover $build
     build_antennatracker $build
+    build_ardusub $build
 done
 
 rm -rf $TMPDIR

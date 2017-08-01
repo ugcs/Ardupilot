@@ -26,7 +26,7 @@ void Tracker::init_tracker()
     // Check the EEPROM format version before loading any parameters from EEPROM
     load_parameters();
 
-    GCS_MAVLINK::set_dataflash(&DataFlash);
+    gcs().set_dataflash(&DataFlash);
 
     mavlink_system.sysid = g.sysid_this_mav;
 
@@ -34,7 +34,7 @@ void Tracker::init_tracker()
     serial_manager.init();
 
     // setup first port early to allow BoardConfig to report errors
-    gcs[0].setup_uart(serial_manager, AP_SerialManager::SerialProtocol_MAVLink, 0);
+    gcs_chan[0].setup_uart(serial_manager, AP_SerialManager::SerialProtocol_MAVLink, 0);
 
     // Register mavlink_delay_cb, which will run anytime you have
     // more than 5ms remaining in your call to hal.scheduler->delay
@@ -58,8 +58,8 @@ void Tracker::init_tracker()
 
     // setup telem slots with serial ports
     for (uint8_t i = 1; i < MAVLINK_COMM_NUM_BUFFERS; i++) {
-        gcs[i].setup_uart(serial_manager, AP_SerialManager::SerialProtocol_MAVLink, i);
-        gcs[i].set_snoop(mavlink_snoop_static);
+        gcs_chan[i].setup_uart(serial_manager, AP_SerialManager::SerialProtocol_MAVLink, i);
+        gcs_chan[i].set_snoop(mavlink_snoop_static);
     }
 
 #if LOGGING_ENABLED == ENABLED
@@ -85,6 +85,9 @@ void Tracker::init_tracker()
     ahrs.reset();
 
     init_barometer(true);
+
+    // initialise DataFlash library
+    DataFlash.setVehicle_Startup_Log_Writer(FUNCTOR_BIND(&tracker, &Tracker::Log_Write_Vehicle_Startup_Messages, void));
 
     // set serial ports non-blocking
     serial_manager.set_blocking_writes_all(false);
@@ -120,6 +123,8 @@ void Tracker::init_tracker()
         prepare_servos();
     }
 
+    // disable safety if requested
+    BoardConfig.init_safety();    
 }
 
 // updates the status of the notify objects
@@ -248,7 +253,10 @@ void Tracker::check_usb_mux(void)
  */
 bool Tracker::should_log(uint32_t mask)
 {
-    if (!(mask & g.log_bitmask) || in_mavlink_delay) {
+    if (in_mavlink_delay) {
+        return false;
+    }
+    if (!(mask & g.log_bitmask)) {
         return false;
     }
     return true;

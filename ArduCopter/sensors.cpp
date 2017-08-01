@@ -29,7 +29,7 @@ void Copter::init_rangefinder(void)
 #if RANGEFINDER_ENABLED == ENABLED
    rangefinder.init();
    rangefinder_state.alt_cm_filt.set_cutoff_frequency(RANGEFINDER_WPNAV_FILT_HZ);
-   rangefinder_state.enabled = (rangefinder.num_sensors() >= 1);
+   rangefinder_state.enabled = rangefinder.has_orientation(ROTATION_PITCH_270);
 #endif
 }
 
@@ -43,10 +43,10 @@ void Copter::read_rangefinder(void)
         should_log(MASK_LOG_CTUN)) {
         DataFlash.Log_Write_RFND(rangefinder);
     }
-    
-    rangefinder_state.alt_healthy = ((rangefinder.status() == RangeFinder::RangeFinder_Good) && (rangefinder.range_valid_count() >= RANGEFINDER_HEALTH_MAX));
 
-    int16_t temp_alt = rangefinder.distance_cm();
+    rangefinder_state.alt_healthy = ((rangefinder.status_orient(ROTATION_PITCH_270) == RangeFinder::RangeFinder_Good) && (rangefinder.range_valid_count_orient(ROTATION_PITCH_270) >= RANGEFINDER_HEALTH_MAX));
+
+    int16_t temp_alt = rangefinder.distance_cm_orient(ROTATION_PITCH_270);
 
  #if RANGEFINDER_TILT_CORRECTION == ENABLED
     // correct alt for angle of the rangefinder
@@ -260,6 +260,7 @@ void Copter::init_proximity(void)
 {
 #if PROXIMITY_ENABLED == ENABLED
     g2.proximity.init();
+    g2.proximity.set_rangefinder(&rangefinder);
 #endif
 }
 
@@ -294,6 +295,11 @@ void Copter::update_sensor_status_flags(void)
 #endif
 #if PRECISION_LANDING == ENABLED
     if (precland.enabled()) {
+        control_sensors_present |= MAV_SYS_STATUS_SENSOR_VISION_POSITION;
+    }
+#endif
+#if VISUAL_ODOMETRY_ENABLED == ENABLED
+    if (g2.visual_odom.enabled()) {
         control_sensors_present |= MAV_SYS_STATUS_SENSOR_VISION_POSITION;
     }
 #endif
@@ -381,7 +387,12 @@ void Copter::update_sensor_status_flags(void)
     }
 #endif
 #if PRECISION_LANDING == ENABLED
-    if (!precland.healthy()) {
+    if (precland.enabled() && !precland.healthy()) {
+        control_sensors_health &= ~MAV_SYS_STATUS_SENSOR_VISION_POSITION;
+    }
+#endif
+#if VISUAL_ODOMETRY_ENABLED == ENABLED
+    if (g2.visual_odom.enabled() && !g2.visual_odom.healthy()) {
         control_sensors_health &= ~MAV_SYS_STATUS_SENSOR_VISION_POSITION;
     }
 #endif
@@ -425,10 +436,10 @@ void Copter::update_sensor_status_flags(void)
 #endif
 
 #if RANGEFINDER_ENABLED == ENABLED
-    if (rangefinder.num_sensors() > 0) {
+    if (rangefinder_state.enabled) {
         control_sensors_present |= MAV_SYS_STATUS_SENSOR_LASER_POSITION;
         control_sensors_enabled |= MAV_SYS_STATUS_SENSOR_LASER_POSITION;
-        if (rangefinder.has_data()) {
+        if (rangefinder.has_data_orient(ROTATION_PITCH_270)) {
             control_sensors_health |= MAV_SYS_STATUS_SENSOR_LASER_POSITION;
         }
     }
@@ -459,4 +470,35 @@ void Copter::init_beacon()
 void Copter::update_beacon()
 {
     g2.beacon.update();
+}
+
+// init visual odometry sensor
+void Copter::init_visual_odom()
+{
+#if VISUAL_ODOMETRY_ENABLED == ENABLED
+    g2.visual_odom.init();
+#endif
+}
+
+// update visual odometry sensor
+void Copter::update_visual_odom()
+{
+#if VISUAL_ODOMETRY_ENABLED == ENABLED
+    // check for updates
+    if (g2.visual_odom.enabled() && (g2.visual_odom.get_last_update_ms() != visual_odom_last_update_ms)) {
+        visual_odom_last_update_ms = g2.visual_odom.get_last_update_ms();
+        float time_delta_sec = g2.visual_odom.get_time_delta_usec() / 1000000.0f;
+        ahrs.writeBodyFrameOdom(g2.visual_odom.get_confidence(),
+                                g2.visual_odom.get_position_delta(),
+                                g2.visual_odom.get_angle_delta(),
+                                time_delta_sec,
+                                visual_odom_last_update_ms,
+                                g2.visual_odom.get_pos_offset());
+        // log sensor data
+        DataFlash.Log_Write_VisualOdom(time_delta_sec,
+                                       g2.visual_odom.get_angle_delta(),
+                                       g2.visual_odom.get_position_delta(),
+                                       g2.visual_odom.get_confidence());
+    }
+#endif
 }

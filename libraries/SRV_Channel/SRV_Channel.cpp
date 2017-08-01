@@ -20,15 +20,11 @@
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Math/AP_Math.h>
 #include <AP_Vehicle/AP_Vehicle.h>
+#include <AP_Math/AP_Math.h>
 #include "SRV_Channel.h"
 
 extern const AP_HAL::HAL& hal;
 
-SRV_Channel *SRV_Channels::channels;
-bool SRV_Channels::disabled_passthrough;
-bool SRV_Channels::initialised;
-Bitmask SRV_Channels::function_mask{SRV_Channel::k_nr_aux_servo_functions};
-SRV_Channels::srv_function SRV_Channels::functions[SRV_Channel::k_nr_aux_servo_functions];
 SRV_Channel::servo_mask_t SRV_Channel::have_pwm_mask;
 
 const AP_Param::GroupInfo SRV_Channel::var_info[] = {
@@ -61,7 +57,7 @@ const AP_Param::GroupInfo SRV_Channel::var_info[] = {
     
     // @Param: REVERSED
     // @DisplayName: Servo reverse
-    // @Description: Reverse servo operation. Set to 0 for normal operation. Set to 1 to reverse this channel.
+    // @Description: Reverse servo operation. Set to 0 for normal operation. Set to 1 to reverse this output channel.
     // @Values: 0:Normal,1:Reversed
     // @User: Standard
     AP_GROUPINFO("REVERSED",  4, SRV_Channel, reversed, 0),
@@ -69,88 +65,13 @@ const AP_Param::GroupInfo SRV_Channel::var_info[] = {
     // @Param: FUNCTION
     // @DisplayName: Servo output function
     // @Description: Function assigned to this servo. Seeing this to Disabled(0) will setup this output for control by auto missions or MAVLink servo set commands. any other value will enable the corresponding function
-    // @Values: 0:Disabled,1:RCPassThru,2:Flap,3:Flap_auto,4:Aileron,6:mount_pan,7:mount_tilt,8:mount_roll,9:mount_open,10:camera_trigger,11:release,12:mount2_pan,13:mount2_tilt,14:mount2_roll,15:mount2_open,16:DifferentialSpoiler1,17:DifferentialSpoiler2,18:AileronWithInput,19:Elevator,20:ElevatorWithInput,21:Rudder,24:Flaperon1,25:Flaperon2,26:GroundSteering,27:Parachute,28:EPM,29:LandingGear,30:EngineRunEnable,31:HeliRSC,32:HeliTailRSC,33:Motor1,34:Motor2,35:Motor3,36:Motor4,37:Motor5,38:Motor6,39:Motor7,40:Motor8,51:RCIN1,52:RCIN2,53:RCIN3,54:RCIN4,55:RCIN5,56:RCIN6,57:RCIN7,58:RCIN8,59:RCIN9,60:RCIN10,61:RCIN11,62:RCIN12,63:RCIN13,64:RCIN14,65:RCIN15,66:RCIN16,67:Ignition,68:Choke,69:Starter,70:Throttle,71:TrackerYaw,72:TrackerPitch
+    // @Values: 0:Disabled,1:RCPassThru,2:Flap,3:Flap_auto,4:Aileron,6:mount_pan,7:mount_tilt,8:mount_roll,9:mount_open,10:camera_trigger,11:release,12:mount2_pan,13:mount2_tilt,14:mount2_roll,15:mount2_open,16:DifferentialSpoiler1,17:DifferentialSpoiler2,18:AileronWithInput,19:Elevator,20:ElevatorWithInput,21:Rudder,24:Flaperon1,25:Flaperon2,26:GroundSteering,27:Parachute,28:EPM,29:LandingGear,30:EngineRunEnable,31:HeliRSC,32:HeliTailRSC,33:Motor1,34:Motor2,35:Motor3,36:Motor4,37:Motor5,38:Motor6,39:Motor7,40:Motor8,41:MotorTilt,51:RCIN1,52:RCIN2,53:RCIN3,54:RCIN4,55:RCIN5,56:RCIN6,57:RCIN7,58:RCIN8,59:RCIN9,60:RCIN10,61:RCIN11,62:RCIN12,63:RCIN13,64:RCIN14,65:RCIN15,66:RCIN16,67:Ignition,68:Choke,69:Starter,70:Throttle,71:TrackerYaw,72:TrackerPitch,73:ThrottleLeft,74:ThrottleRight,75:tiltMotorLeft,76:tiltMotorRight,77:ElevonLeft,78:ElevonRight,79:VTailLeft,80:VTailRight
     // @User: Standard
     AP_GROUPINFO("FUNCTION",  5, SRV_Channel, function, 0),
     
     AP_GROUPEND
 };
 
-
-const AP_Param::GroupInfo SRV_Channels::var_info[] = {
-    // @Group: 1_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[0], "1_",  1, SRV_Channels, SRV_Channel),
-
-    // @Group: 2_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[1], "2_",  2, SRV_Channels, SRV_Channel),
-
-    // @Group: 3_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[2], "3_",  3, SRV_Channels, SRV_Channel),
-
-    // @Group: 4_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[3], "4_",  4, SRV_Channels, SRV_Channel),
-
-    // @Group: 5_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[4], "5_",  5, SRV_Channels, SRV_Channel),
-
-    // @Group: 6_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[5], "6_",  6, SRV_Channels, SRV_Channel),
-
-    // @Group: 7_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[6], "7_",  7, SRV_Channels, SRV_Channel),
-
-    // @Group: 8_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[7], "8_",  8, SRV_Channels, SRV_Channel),
-
-    // @Group: 9_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[8], "9_",  9, SRV_Channels, SRV_Channel),
-
-    // @Group: 10_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[9], "10_",  10, SRV_Channels, SRV_Channel),
-
-    // @Group: 11_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[10], "11_",  11, SRV_Channels, SRV_Channel),
-
-    // @Group: 12_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[11], "12_",  12, SRV_Channels, SRV_Channel),
-
-    // @Group: 13_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[12], "13_",  13, SRV_Channels, SRV_Channel),
-
-    // @Group: 14_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[13], "14_",  14, SRV_Channels, SRV_Channel),
-
-    // @Group: 15_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[14], "15_",  15, SRV_Channels, SRV_Channel),
-
-    // @Group: 16_
-    // @Path: SRV_Channel.cpp
-    AP_SUBGROUPINFO(obj_channels[15], "16_",  16, SRV_Channels, SRV_Channel),
-    
-    // @Param: _AUTO_TRIM
-    // @DisplayName: Automatic servo trim
-    // @Description: This enables automatic servo trim in flight. Servos will be trimed in stabilized flight modes when the aircraft is close to level. Changes to servo trim will be saved every 10 seconds and will persist between flights.
-    // @Values: 0:Disable,1:Enable
-    // @User: Advanced
-    AP_GROUPINFO("_AUTO_TRIM",  17, SRV_Channels, auto_trim, 0),
-    
-    AP_GROUPEND
-};
 
 SRV_Channel::SRV_Channel(void)
 {
@@ -159,35 +80,6 @@ SRV_Channel::SRV_Channel(void)
     have_pwm_mask = ~uint16_t(0);
 }
 
-
-/*
-  constructor
- */
-SRV_Channels::SRV_Channels(void)
-{
-    channels = obj_channels;
-    
-    // set defaults from the parameter table
-    AP_Param::setup_object_defaults(this, var_info);
-
-    // setup ch_num on channels
-    for (uint8_t i=0; i<NUM_SERVO_CHANNELS; i++) {
-        channels[i].ch_num = i;
-    }
-}
-
-/*
-  save adjusted trims
- */
-void SRV_Channels::save_trim(void)
-{
-    for (uint8_t i=0; i<NUM_SERVO_CHANNELS; i++) {
-        if (trimmed_mask & (1U<<i)) {
-            channels[i].servo_trim.set_and_save(channels[i].servo_trim.get());
-        }
-    }
-    trimmed_mask = 0;
-}
 
 // convert a 0..range_max to a pwm
 uint16_t SRV_Channel::pwm_from_range(int16_t scaled_value) const
@@ -232,20 +124,6 @@ void SRV_Channel::calc_pwm(int16_t output_scaled)
         pwm = pwm_from_range(output_scaled);
     }
     set_output_pwm(pwm);
-}
-
-void SRV_Channels::output_trim_all(void)
-{
-    for (uint8_t i=0; i<NUM_SERVO_CHANNELS; i++) {
-        channels[i].set_output_pwm(channels[i].servo_trim);
-    }
-}
-
-void SRV_Channels::setup_failsafe_trim_all(void)
-{
-    for (uint8_t i = 0; i < NUM_SERVO_CHANNELS; i++) {
-        hal.rcout->set_failsafe_pwm(1U<<channels[i].ch_num, channels[i].servo_trim);
-    }
 }
 
 void SRV_Channel::set_output_pwm(uint16_t pwm)
@@ -308,12 +186,3 @@ uint16_t SRV_Channel::get_limit_pwm(LimitValue limit) const
     }
 }
 
-/*
-  run calc_pwm for all channels
- */
-void SRV_Channels::calc_pwm(void)
-{
-    for (uint8_t i=0; i<NUM_SERVO_CHANNELS; i++) {
-        channels[i].calc_pwm(functions[channels[i].function].output_scaled);
-    }
-}

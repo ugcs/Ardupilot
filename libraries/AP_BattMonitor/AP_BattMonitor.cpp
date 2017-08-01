@@ -10,21 +10,21 @@ const AP_Param::GroupInfo AP_BattMonitor::var_info[] = {
     // @Param: _MONITOR
     // @DisplayName: Battery monitoring
     // @Description: Controls enabling monitoring of the battery's voltage and current
-    // @Values: 0:Disabled,3:Analog Voltage Only,4:Analog Voltage and Current,5:SMBus,6:Bebop
+    // @Values: 0:Disabled,3:Analog Voltage Only,4:Analog Voltage and Current,5:Solo,6:Bebop,7:SMBus-Maxell
     // @User: Standard
     AP_GROUPINFO("_MONITOR", 0, AP_BattMonitor, _monitoring[0], BattMonitor_TYPE_NONE),
 
     // @Param: _VOLT_PIN
     // @DisplayName: Battery Voltage sensing pin
-    // @Description: Setting this to 0 ~ 13 will enable battery voltage sensing on pins A0 ~ A13. For the 3DR power brick on APM2.5 it should be set to 13. On the PX4 it should be set to 100. On the Pixhawk powered from the PM connector it should be set to 2.
-    // @Values: -1:Disabled, 0:A0, 1:A1, 2:Pixhawk, 13:A13, 100:PX4
+    // @Description: Setting this to 0 ~ 13 will enable battery voltage sensing on pins A0 ~ A13. For APM2.x power brick it should be set to 13. On the PX4-v1 it should be set to 100. On the Pixhawk, Pixracer and NAVIO board's PM connector it should be set to 2, Pixhawk2 Power2 is 13.
+    // @Values: -1:Disabled, 0:A0, 1:A1, 2:Pixhawk/Pixracer/Navio2, 5:A5, 10:A10, 13:A13/Pixhawk2_PM2, 100:PX4-v1
     // @User: Standard
     AP_GROUPINFO("_VOLT_PIN", 1, AP_BattMonitor, _volt_pin[0], AP_BATT_VOLT_PIN),
 
     // @Param: _CURR_PIN
     // @DisplayName: Battery Current sensing pin
-    // @Description: Setting this to 0 ~ 13 will enable battery current sensing on pins A0 ~ A13. For the 3DR power brick on APM2.5 it should be set to 12. On the PX4 it should be set to 101. On the Pixhawk powered from the PM connector it should be set to 3.
-    // @Values: -1:Disabled, 1:A1, 2:A2, 3:Pixhawk, 12:A12, 101:PX4
+    // @Description: Setting this to 0 ~ 13 will enable battery current sensing on pins A0 ~ A13. For the 3DR power brick on APM2.5 it should be set to 12. On the PX4 it should be set to 101. On the Pixhawk powered from the PM connector it should be set to 3, Pixhawk2 Power2 is 12.
+    // @Values: -1:Disabled, 1:A1, 2:A2, 3:Pixhawk/Pixracer/Navio2, 11:A11, 12:A12/Pixhawk2_PM2, 101:PX4-v1
     // @User: Standard
     AP_GROUPINFO("_CURR_PIN", 2, AP_BattMonitor, _curr_pin[0], AP_BATT_CURR_PIN),
 
@@ -68,27 +68,31 @@ const AP_Param::GroupInfo AP_BattMonitor::var_info[] = {
     AP_GROUPINFO("_WATT_MAX", 9, AP_BattMonitor, _watt_max[0], AP_BATT_MAX_WATT_DEFAULT),
 #endif
 
-    // 10 is left for future expansion
+    // @Param: _SERIAL_NUM
+    // @DisplayName: Battery serial number
+    // @Description: Battery serial number, automatically filled in for SMBus batteries, otherwise will be -1
+    // @User: Advanced
+    AP_GROUPINFO("_SERIAL_NUM", 10, AP_BattMonitor, _serial_numbers[0], AP_BATT_SERIAL_NUMBER_DEFAULT),
 
 #if AP_BATT_MONITOR_MAX_INSTANCES > 1
     // @Param: 2_MONITOR
     // @DisplayName: Battery monitoring
     // @Description: Controls enabling monitoring of the battery's voltage and current
-    // @Values: 0:Disabled,3:Analog Voltage Only,4:Analog Voltage and Current,5:SMBus,6:Bebop
+    // @Values: 0:Disabled,3:Analog Voltage Only,4:Analog Voltage and Current,5:Solo,6:Bebop,7:SMBus-Maxell
     // @User: Standard
     AP_GROUPINFO("2_MONITOR", 11, AP_BattMonitor, _monitoring[1], BattMonitor_TYPE_NONE),
 
     // @Param: 2_VOLT_PIN
     // @DisplayName: Battery Voltage sensing pin
-    // @Description: Setting this to 0 ~ 13 will enable battery voltage sensing on pins A0 ~ A13. For the 3DR power brick on APM2.5 it should be set to 13. On the PX4 it should be set to 100. On the Pixhawk powered from the PM connector it should be set to 2.
-    // @Values: -1:Disabled, 0:A0, 1:A1, 2:Pixhawk, 13:A13, 100:PX4
+    // @Description: Setting this to 0 ~ 13 will enable battery voltage sensing on pins A0 ~ A13. For APM2.x power brick it should be set to 13. On the PX4-v1 it should be set to 100. On the Pixhawk, Pixracer and NAVIO board's PM connector it should be set to 2, Pixhawk2 Power2 is 13.
+    // @Values: -1:Disabled, 0:A0, 1:A1, 2:Pixhawk/Pixracer/Navio2, 5:A5, 10:A10, 13:A13/Pixhawk2_PM2, 100:PX4-v1
     // @User: Standard
     AP_GROUPINFO("2_VOLT_PIN", 12, AP_BattMonitor, _volt_pin[1], AP_BATT_VOLT_PIN),
 
     // @Param: 2_CURR_PIN
     // @DisplayName: Battery Current sensing pin
-    // @Description: Setting this to 0 ~ 13 will enable battery current sensing on pins A0 ~ A13. For the 3DR power brick on APM2.5 it should be set to 12. On the PX4 it should be set to 101. On the Pixhawk powered from the PM connector it should be set to 3.
-    // @Values: -1:Disabled, 1:A1, 2:A2, 3:Pixhawk, 12:A12, 101:PX4
+    // @Description: Setting this to 0 ~ 13 will enable battery current sensing on pins A0 ~ A13. For the 3DR power brick on APM2.5 it should be set to 12. On the PX4 it should be set to 101. On the Pixhawk powered from the PM connector it should be set to 3, Pixhawk2 Power2 is 12.
+    // @Values: -1:Disabled, 1:A1, 2:A2, 3:Pixhawk/Pixracer/Navio2, 11:A11, 12:A12/Pixhawk2_PM2, 101:PX4-v1
     // @User: Standard
     AP_GROUPINFO("2_CURR_PIN", 13, AP_BattMonitor, _curr_pin[1], AP_BATT_CURR_PIN),
 
@@ -131,8 +135,23 @@ const AP_Param::GroupInfo AP_BattMonitor::var_info[] = {
     AP_GROUPINFO("2_WATT_MAX", 18, AP_BattMonitor, _watt_max[1], AP_BATT_MAX_WATT_DEFAULT),
 #endif
 
+    // @Param: 2_SERIAL_NUM
+    // @DisplayName: Battery serial number
+    // @Description: Battery serial number, automatically filled in for SMBus batteries, otherwise will be -1
+    // @User: Advanced
+    AP_GROUPINFO("2_SERIAL_NUM", 20, AP_BattMonitor, _serial_numbers[1], AP_BATT_SERIAL_NUMBER_DEFAULT),
+
 #endif // AP_BATT_MONITOR_MAX_INSTANCES > 1
 
+    // @Param: _VOLT_TIMER
+    // @DisplayName: Low voltage timeout
+    // @Description: This is the timeout in seconds before a low voltage event will be triggered. For aircraft with low C batteries it may be necessary to raise this in order to cope with low voltage on long takeoffs. A value of zero disables low voltage errors.
+    // @Units: Seconds
+    // @Increment: 1
+    // @Range: 0 120
+    // @User: Advanced
+    AP_GROUPINFO("_VOLT_TIMER", 21, AP_BattMonitor, _volt_timeout, AP_BATT_LOW_VOLT_TIMEOUT_DEFAULT),
+        
     AP_GROUPEND
 };
 
@@ -162,28 +181,33 @@ AP_BattMonitor::init()
 
     // create each instance
     for (uint8_t instance=0; instance<AP_BATT_MONITOR_MAX_INSTANCES; instance++) {
+        // clear out the cell voltages
+        memset(&state[instance].cell_voltages, 0xFF, sizeof(cells));
+
         uint8_t monitor_type = _monitoring[instance];
         switch (monitor_type) {
             case BattMonitor_TYPE_ANALOG_VOLTAGE_ONLY:
             case BattMonitor_TYPE_ANALOG_VOLTAGE_AND_CURRENT:
                 state[instance].instance = instance;
-                drivers[instance] = new AP_BattMonitor_Analog(*this, instance, state[instance]);
+                drivers[instance] = new AP_BattMonitor_Analog(*this, state[instance]);
                 _num_instances++;
                 break;
-            case BattMonitor_TYPE_SMBUS:
+            case BattMonitor_TYPE_SOLO:
                 state[instance].instance = instance;
-#if CONFIG_HAL_BOARD == HAL_BOARD_PX4
-                drivers[instance] = new AP_BattMonitor_SMBus_PX4(*this, instance, state[instance]);
-#else
-                drivers[instance] = new AP_BattMonitor_SMBus_I2C(*this, instance, state[instance],
-                                                                 hal.i2c_mgr->get_device(BATTMONITOR_SBUS_I2C_BUS, BATTMONITOR_SMBUS_I2C_ADDR));
-#endif
+                drivers[instance] = new AP_BattMonitor_SMBus_Solo(*this, state[instance],
+                                                                 hal.i2c_mgr->get_device(AP_BATTMONITOR_SMBUS_BUS_INTERNAL, AP_BATTMONITOR_SMBUS_I2C_ADDR));
+                _num_instances++;
+                break;
+            case BattMonitor_TYPE_MAXELL:
+                state[instance].instance = instance;
+                drivers[instance] = new AP_BattMonitor_SMBus_Maxell(*this, state[instance],
+                                                                 hal.i2c_mgr->get_device(AP_BATTMONITOR_SMBUS_BUS_EXTERNAL, AP_BATTMONITOR_SMBUS_I2C_ADDR));
                 _num_instances++;
                 break;
             case BattMonitor_TYPE_BEBOP:
 #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BEBOP || CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_DISCO
                 state[instance].instance = instance;
-                drivers[instance] = new AP_BattMonitor_Bebop(*this, instance, state[instance]);
+                drivers[instance] = new AP_BattMonitor_Bebop(*this, state[instance]);
                 _num_instances++;
 #endif
                 break;
@@ -222,8 +246,9 @@ bool AP_BattMonitor::has_current(uint8_t instance) const
     // check for analog voltage and current monitor or smbus monitor
     if (instance < _num_instances && drivers[instance] != nullptr) {
         return (_monitoring[instance] == BattMonitor_TYPE_ANALOG_VOLTAGE_AND_CURRENT ||
-                _monitoring[instance] == BattMonitor_TYPE_SMBUS ||
-                _monitoring[instance] == BattMonitor_TYPE_BEBOP);
+                _monitoring[instance] == BattMonitor_TYPE_SOLO ||
+                _monitoring[instance] == BattMonitor_TYPE_BEBOP ||
+                _monitoring[instance] == BattMonitor_TYPE_MAXELL);
     }
 
     // not monitoring current
@@ -277,7 +302,7 @@ uint8_t AP_BattMonitor::capacity_remaining_pct(uint8_t instance) const
         return 0;
     }
  }
- 
+
  /// exhausted - returns true if the voltage remains below the low_voltage for 10 seconds or remaining capacity falls below min_capacity_mah
 bool AP_BattMonitor::exhausted(uint8_t instance, float low_voltage, float min_capacity_mah)
 {
@@ -291,7 +316,7 @@ bool AP_BattMonitor::exhausted(uint8_t instance, float low_voltage, float min_ca
         // this is the first time our voltage has dropped below minimum so start timer
         if (state[instance].low_voltage_start_ms == 0) {
             state[instance].low_voltage_start_ms = AP_HAL::millis();
-        } else if (AP_HAL::millis() - state[instance].low_voltage_start_ms > AP_BATT_LOW_VOLT_TIMEOUT_MS) {
+        } else if (_volt_timeout > 0 && AP_HAL::millis() - state[instance].low_voltage_start_ms > uint32_t(_volt_timeout.get())*1000U) {
             return true;
         }
     } else {
@@ -331,3 +356,23 @@ bool AP_BattMonitor::overpower_detected(uint8_t instance) const
 #endif
 }
 
+// return the current cell voltages, returns the first monitor instances cells if the instance is out of range
+const AP_BattMonitor::cells & AP_BattMonitor::get_cell_voltages(const uint8_t instance) const
+{
+    if (instance >= AP_BATT_MONITOR_MAX_INSTANCES) {
+        return state[AP_BATT_PRIMARY_INSTANCE].cell_voltages;
+    } else {
+        return state[instance].cell_voltages;
+    }
+}
+
+// returns true if there is a temperature reading
+bool AP_BattMonitor::get_temperature(float &temperature, const uint8_t instance) const
+{
+    if (instance >= AP_BATT_MONITOR_MAX_INSTANCES) {
+        return false;
+    } else {
+        temperature = state[instance].temperature;
+        return (AP_HAL::millis() - state[instance].temperature_time) <= AP_BATT_MONITOR_TIMEOUT;
+    }
+}

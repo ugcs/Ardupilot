@@ -23,6 +23,7 @@
 #include "SITL.h"
 #include <AP_Terrain/AP_Terrain.h>
 
+
 namespace SITL {
 
 /*
@@ -65,6 +66,9 @@ public:
     void set_autotest_dir(const char *_autotest_dir) {
         autotest_dir = _autotest_dir;
     }
+
+    /*  Create and set in/out socket for extenal simulator */
+    virtual void set_interface_ports(const char* address, const int port_in, const int port_out) {};
 
     /*
       step the FDM by one time step
@@ -163,6 +167,7 @@ protected:
         GROUND_BEHAVIOR_NONE = 0,
         GROUND_BEHAVIOR_NO_MOVEMENT,
         GROUND_BEHAVIOR_FWD_ONLY,
+        GROUND_BEHAVIOR_TAILSITTER,
     } ground_behavior;
 
     bool use_smoothing;
@@ -173,7 +178,7 @@ protected:
     const float FEET_TO_METERS = 0.3048f;
     const float KNOTS_TO_METERS_PER_SECOND = 0.51444f;
 
-    bool on_ground() const;
+    virtual bool on_ground() const;
 
     // returns height above ground level in metres
     float hagl() const;  // metres

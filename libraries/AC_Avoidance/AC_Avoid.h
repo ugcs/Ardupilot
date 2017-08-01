@@ -73,8 +73,9 @@ private:
     /*
      * Adjusts the desired velocity given an array of boundary points
      *   earth_frame should be true if boundary is in earth-frame, false for body-frame
+     *   margin is the distance (in meters) that the vehicle should stop short of the polygon
      */
-    void adjust_velocity_polygon(float kP, float accel_cmss, Vector2f &desired_vel, const Vector2f* boundary, uint16_t num_points, bool earth_frame);
+    void adjust_velocity_polygon(float kP, float accel_cmss, Vector2f &desired_vel, const Vector2f* boundary, uint16_t num_points, bool earth_frame, float margin);
 
     /*
      * Limits the component of desired_vel in the direction of the unit vector
@@ -103,11 +104,6 @@ private:
     float get_stopping_distance(float kP, float accel_cmss, float speed) const;
 
     /*
-     * Gets the fence margin in cm
-     */
-    float get_margin() const { return _fence.get_margin() * 100.0f; }
-
-    /*
      * methods for avoidance in non-GPS flight modes
      */
 
@@ -127,6 +123,7 @@ private:
     AP_Int8 _enabled;
     AP_Int16 _angle_max;        // maximum lean angle to avoid obstacles (only used in non-GPS flight modes)
     AP_Float _dist_max;         // distance (in meters) from object at which obstacle avoidance will begin in non-GPS modes
+    AP_Float _margin;           // vehicle will attempt to stay this distance (in meters) from objects while in GPS modes
 
     bool _proximity_enabled = true; // true if proximity sensor based avoidance is enabled (used to allow pilot to enable/disable)
 };

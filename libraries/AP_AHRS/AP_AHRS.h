@@ -40,12 +40,18 @@ enum AHRS_VehicleClass {
     AHRS_VEHICLE_GROUND,
     AHRS_VEHICLE_COPTER,
     AHRS_VEHICLE_FIXED_WING,
+    AHRS_VEHICLE_SUBMARINE,
 };
 
+
+// forward declare view class
+class AP_AHRS_View;
 
 class AP_AHRS
 {
 public:
+    friend class AP_AHRS_View;
+    
     // Constructor
     AP_AHRS(AP_InertialSensor &ins, AP_Baro &baro, AP_GPS &gps) :
         roll(0.0f),
@@ -204,7 +210,7 @@ public:
     }
 
     // Methods
-    virtual void update(void) = 0;
+    virtual void update(bool skip_ins_update=false) = 0;
 
     // report any reason for why the backend is refusing to initialise
     virtual const char *prearm_failure_reason(void) const {
@@ -228,6 +234,9 @@ public:
 
     // return a smoothed and corrected gyro vector
     virtual const Vector3f &get_gyro(void) const = 0;
+
+    // return a smoothed and corrected gyro vector using the latest ins data (which may not have been consumed by the EKF yet)
+    Vector3f get_gyro_latest(void) const;
 
     // return the current estimate of the gyro drift
     virtual const Vector3f &get_gyro_drift(void) const = 0;
@@ -314,19 +323,35 @@ public:
     // return a position relative to home in meters, North/East/Down
     // order. This will only be accurate if have_inertial_nav() is
     // true
-    virtual bool get_relative_position_NED(Vector3f &vec) const {
+    virtual bool get_relative_position_NED_home(Vector3f &vec) const {
         return false;
     }
 
+    // return a position relative to origin in meters, North/East/Down
+    // order. This will only be accurate if have_inertial_nav() is
+    // true
+    virtual bool get_relative_position_NED_origin(Vector3f &vec) const {
+        return false;
+    }
     // return a position relative to home in meters, North/East
     // order. Return true if estimate is valid
-    virtual bool get_relative_position_NE(Vector2f &vecNE) const {
+    virtual bool get_relative_position_NE_home(Vector2f &vecNE) const {
+        return false;
+    }
+
+    // return a position relative to origin in meters, North/East
+    // order. Return true if estimate is valid
+    virtual bool get_relative_position_NE_origin(Vector2f &vecNE) const {
         return false;
     }
 
     // return a Down position relative to home in meters
+    // if EKF is unavailable will return the baro altitude
+    virtual void get_relative_position_D_home(float &posD) const = 0;
+
+    // return a Down position relative to origin in meters
     // Return true if estimate is valid
-    virtual bool get_relative_position_D(float &posD) const {
+    virtual bool get_relative_position_D_origin(float &posD) const {
         return false;
     }
 
@@ -395,6 +420,11 @@ public:
         return false;
     }
 
+    // return secondary attitude solution if available, as quaternion
+    virtual bool get_secondary_quaternion(Quaternion &quat) {
+        return false;
+    }
+    
     // return secondary position solution if available
     virtual bool get_secondary_position(struct Location &loc) {
         return false;
@@ -410,6 +440,11 @@ public:
     // when the vehicle is at this position. It is assumed that the
     // current barometer and GPS altitudes correspond to this altitude
     virtual void set_home(const Location &loc) = 0;
+
+    // set the EKF's origin location in 10e7 degrees.  This should only
+    // be called when the EKF has no absolute position reference (i.e. GPS)
+    // from which to decide the origin on its own
+    virtual bool set_origin(const Location &loc) { return false; }
 
     // return true if the AHRS object supports inertial navigation,
     // with very accurate position and velocity
@@ -481,7 +516,18 @@ public:
 
     // Retrieves the corrected NED delta velocity in use by the inertial navigation
     virtual void getCorrectedDeltaVelocityNED(Vector3f& ret, float& dt) const { ret.zero(); _ins.get_delta_velocity(ret); dt = _ins.get_delta_velocity_dt(); }
+
+    // create a view
+    AP_AHRS_View *create_view(enum Rotation rotation);
     
+    // return calculated AOA
+    float getAOA(void);
+
+    // return calculated SSA
+    float getSSA(void);
+
+    virtual void update_AOA_SSA(void);
+
 protected:
     AHRS_VehicleClass _vehicle_class;
 
@@ -507,6 +553,11 @@ protected:
         uint8_t wind_estimation         : 1;    // 1 if we should do wind estimation
     } _flags;
 
+    // calculate sin/cos of roll/pitch/yaw from rotation
+    void calc_trig(const Matrix3f &rot,
+                   float &cr, float &cp, float &cy,
+                   float &sr, float &sp, float &sy) const;
+    
     // update_trig - recalculates _cos_roll, _cos_pitch, etc based on latest attitude
     //      should be called after _dcm_matrix is updated
     void update_trig(void);
@@ -566,6 +617,13 @@ protected:
 
     // which accelerometer instance is active
     uint8_t _active_accel_instance;
+
+    // optional view class
+    AP_AHRS_View *_view;
+
+    // AOA and SSA
+    float _AOA, _SSA;
+    uint32_t _last_AOA_update_ms;
 };
 
 #include "AP_AHRS_DCM.h"

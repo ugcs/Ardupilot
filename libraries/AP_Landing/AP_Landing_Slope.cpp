@@ -384,7 +384,12 @@ void AP_Landing::type_slope_log(void) const
                                             type_slope_stage,
                                             flags,
                                             type_slope_flags,
-                                            slope,
-                                            initial_slope,
-                                            alt_offset);
+                                            (double)slope,
+                                            (double)initial_slope,
+                                            (double)alt_offset);
+}
+
+bool AP_Landing::type_slope_is_throttle_suppressed(void) const
+{
+    return type_slope_stage == SLOPE_STAGE_FINAL;
 }

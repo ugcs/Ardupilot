@@ -259,10 +259,6 @@ void Copter::init_disarm_motors()
     // reset the mission
     mission.reset();
 
-    // suspend logging
-    if (!DataFlash.log_while_disarmed()) {
-        DataFlash.EnableWrites(false);
-    }
     DataFlash_Class::instance()->set_vehicle_armed(false);
 
     // disable gps velocity based centrefugal force compensation
@@ -290,6 +286,15 @@ void Copter::motors_output()
         ap.in_arming_delay = false;
     }
 
+    // output any servo channels
+    SRV_Channels::calc_pwm();
+
+    // cork now, so that all channel outputs happen at once
+    hal.rcout->cork();
+    
+    // update output on any aux channels, for manual passthru
+    SRV_Channels::output_ch_all();
+    
     // check if we are performing the motor test
     if (ap.motor_test) {
         motor_test_output();
@@ -306,6 +311,9 @@ void Copter::motors_output()
         // send output signals to motors
         motors->output();
     }
+
+    // push all channels
+    hal.rcout->push();
 }
 
 // check for pilot stick input to trigger lost vehicle alarm

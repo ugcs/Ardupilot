@@ -112,6 +112,18 @@ bool Copter::start_command(const AP_Mission::Mission_Command& cmd)
         // point the camera to a specified angle
         do_mount_control(cmd);
         break;
+    
+    case MAV_CMD_DO_FENCE_ENABLE:
+#if AC_FENCE == ENABLED
+        if (cmd.p1 == 0) { //disable
+            copter.fence.enable(false);
+            gcs_send_text_fmt(MAV_SEVERITY_INFO, "Fence Disabled");
+        } else { //enable fence
+            copter.fence.enable(true);
+            gcs_send_text_fmt(MAV_SEVERITY_INFO, "Fence Enabled");
+        }
+#endif //AC_FENCE == ENABLED
+        break;
 
 #if CAMERA == ENABLED
     case MAV_CMD_DO_CONTROL_VIDEO:                      // Control on-board camera capturing. |Camera ID (-1 for all)| Transmission: 0: disabled, 1: enabled compressed, 2: enabled raw| Transmission mode: 0: video stream, >0: single images every n seconds (decimal)| Recording: 0: disabled, 1: enabled compressed, 2: enabled raw| Empty| Empty| Empty|
@@ -256,6 +268,7 @@ bool Copter::verify_command(const AP_Mission::Mission_Command& cmd)
     case MAV_CMD_DO_PARACHUTE:  // assume parachute was released successfully
     case MAV_CMD_DO_GRIPPER:
     case MAV_CMD_DO_GUIDED_LIMITS:
+    case MAV_CMD_DO_FENCE_ENABLE:
         return true;
 
     default:
@@ -1091,9 +1104,7 @@ void Copter::do_set_home(const AP_Mission::Mission_Command& cmd)
     if(cmd.p1 == 1 || (cmd.content.location.lat == 0 && cmd.content.location.lng == 0 && cmd.content.location.alt == 0)) {
         set_home_to_current_location();
     } else {
-        if (!far_from_EKF_origin(cmd.content.location)) {
-            set_home(cmd.content.location);
-        }
+        set_home(cmd.content.location);
     }
 }
 

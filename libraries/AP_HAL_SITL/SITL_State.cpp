@@ -88,8 +88,8 @@ void SITL_State::_sitl_setup(const char *home_str)
         // setup some initial values
 #ifndef HIL_MODE
         _update_barometer(100);
-        _update_ins(0, 0, 0, 0, 0, 0, 0, 0, -9.8, 0, 100);
-        _update_compass(0, 0, 0);
+        _update_ins(0);
+        _update_compass();
         _update_gps(0, 0, 0, 0, 0, 0, false);
 #endif
         if (enable_gimbal) {
@@ -100,6 +100,8 @@ void SITL_State::_sitl_setup(const char *home_str)
             fg_socket.connect("127.0.0.1", _fg_view_port);
         }
 
+        fprintf(stdout, "Using Irlock at port : %d\n", _irlock_port);
+        _sitl->irlock_port = _irlock_port;
     }
 
     if (_synthetic_clock_mode) {
@@ -116,7 +118,8 @@ void SITL_State::_sitl_setup(const char *home_str)
 void SITL_State::_setup_fdm(void)
 {
     if (!_sitl_rc_in.bind("0.0.0.0", _rcin_port)) {
-        fprintf(stderr, "SITL: socket bind failed - %s\n", strerror(errno));
+        fprintf(stderr, "SITL: socket bind failed on RC in port : %d - %s\n", _rcin_port, strerror(errno));
+        fprintf(stderr, "Abording launch...\n");
         exit(1);
     }
     _sitl_rc_in.reuseaddress();
@@ -164,12 +167,9 @@ void SITL_State::_fdm_input_step(void)
                     _sitl->state.altitude,
                     _sitl->state.speedN, _sitl->state.speedE, _sitl->state.speedD,
                     !_sitl->gps_disable);
-        _update_ins(_sitl->state.rollDeg, _sitl->state.pitchDeg, _sitl->state.yawDeg,
-                    _sitl->state.rollRate, _sitl->state.pitchRate, _sitl->state.yawRate,
-                    _sitl->state.xAccel, _sitl->state.yAccel, _sitl->state.zAccel,
-                    _sitl->state.airspeed, _sitl->state.altitude);
+        _update_ins(_sitl->state.airspeed);
         _update_barometer(_sitl->state.altitude);
-        _update_compass(_sitl->state.rollDeg, _sitl->state.pitchDeg, _sitl->state.yawDeg);
+        _update_compass();
 
         if (_sitl->adsb_plane_count >= 0 &&
             adsb == nullptr) {
@@ -372,27 +372,27 @@ void SITL_State::_simulator_servos(SITL::Aircraft::sitl_input &input)
     }
 
     float engine_mul = _sitl?_sitl->engine_mul.get():1;
+    uint8_t engine_fail = _sitl?_sitl->engine_fail.get():0;
     bool motors_on = false;
     
+    if (engine_fail >= ARRAY_SIZE(input.servos)) {
+        engine_fail = 0;
+    }
+    // apply engine multiplier to motor defined by the SIM_ENGINE_FAIL parameter
+    if (_vehicle != APMrover2) {
+        input.servos[engine_fail] = ((input.servos[engine_fail]-1000) * engine_mul) + 1000;
+    } else {
+        input.servos[engine_fail] = static_cast<uint16_t>(((input.servos[engine_fail] - 1500) * engine_mul) + 1500);
+    }
+    
     if (_vehicle == ArduPlane) {
-        // add in engine multiplier
-        if (input.servos[2] > 1000) {
-            input.servos[2] = ((input.servos[2]-1000) * engine_mul) + 1000;
-            if (input.servos[2] > 2000) input.servos[2] = 2000;
-        }
-        motors_on = ((input.servos[2]-1000)/1000.0f) > 0;
+        motors_on = ((input.servos[2] - 1000) / 1000.0f) > 0;
     } else if (_vehicle == APMrover2) {
-        // add in engine multiplier
-        if (input.servos[2] != 1500) {
-            input.servos[2] = ((input.servos[2]-1500) * engine_mul) + 1500;
-            if (input.servos[2] > 2000) input.servos[2] = 2000;
-            if (input.servos[2] < 1000) input.servos[2] = 1000;
-        }
-        motors_on = ((input.servos[2]-1500)/500.0f) != 0;
+        input.servos[2] = static_cast<uint16_t>(constrain_int16(input.servos[2], 1000, 2000));
+        input.servos[0] = static_cast<uint16_t>(constrain_int16(input.servos[0], 1000, 2000));
+        motors_on = ((input.servos[2] - 1500) / 500.0f) != 0;
     } else {
         motors_on = false;
-        // apply engine multiplier to first motor
-        input.servos[0] = ((input.servos[0]-1000) * engine_mul) + 1000;
         // run checks on each motor
         for (i=0; i<4; i++) {
             // check motors do not exceed their limits

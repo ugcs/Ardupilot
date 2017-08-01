@@ -288,7 +288,7 @@ public:
     Parameters() :
         // PID controller    initial P        initial I        initial D        initial imax
         //-----------------------------------------------------------------------------------
-        pidSpeedThrottle    (0.7,             0.2,             0.2,             4000)
+        pidSpeedThrottle    (0.7f,            0.2f,            0.2f,            4000)
         {}
 };
 
@@ -310,9 +310,15 @@ public:
 
     // RC input channels
     RC_Channels rc_channels;
-    
+
     // control over servo output ranges
     SRV_Channels servo_channels;
+
+#if ADVANCED_FAILSAFE == ENABLED
+    // advanced failsafe library
+    AP_AdvancedFailsafe_Rover afs;
+#endif
+    AP_Beacon beacon;
 };
 
 extern const AP_Param::Info var_info[];

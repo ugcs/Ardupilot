@@ -106,9 +106,17 @@ void SRV_Channel::aux_servo_function_setup(void)
     case k_steering:
     case k_flaperon1:
     case k_flaperon2:
+    case k_tiltMotorLeft:
+    case k_tiltMotorRight:
+    case k_elevon_left:
+    case k_elevon_right:
+    case k_vtail_left:
+    case k_vtail_right:
         set_angle(4500);
         break;
     case k_throttle:
+    case k_throttleLeft:
+    case k_throttleRight:
         // fixed wing throttle
         set_range(100);
         break;
@@ -149,6 +157,16 @@ void SRV_Channels::enable_aux_servos()
         // see if it is a valid function
         if (function < SRV_Channel::k_nr_aux_servo_functions) {
             hal.rcout->enable_ch(channels[i].ch_num);
+        }
+    }
+}
+
+/// enable output channels using a channel mask
+void SRV_Channels::enable_by_mask(uint16_t mask)
+{
+    for (uint8_t i = 0; i < 16; i++) {
+        if (mask & (1U<<i)) {
+            hal.rcout->enable_ch(i);
         }
     }
 }
@@ -338,10 +356,12 @@ SRV_Channels::move_servo(SRV_Channel::Aux_servo_function_t function,
         return;
     }
     float v = float(value - angle_min) / float(angle_max - angle_min);
+    v = constrain_float(v, 0.0f, 1.0f);
     for (uint8_t i = 0; i < NUM_SERVO_CHANNELS; i++) {
         SRV_Channel &ch = channels[i];
         if (ch.function.get() == function) {
-            uint16_t pwm = ch.servo_min + v * (ch.servo_max - ch.servo_min);
+            float v2 = ch.get_reversed()? (1-v) : v;
+            uint16_t pwm = ch.servo_min + v2 * (ch.servo_max - ch.servo_min);
             ch.set_output_pwm(pwm);
         }
     }
@@ -556,7 +576,7 @@ void SRV_Channels::limit_slew_rate(SRV_Channel::Aux_servo_function_t function, f
         SRV_Channel &ch = channels[i];
         if (ch.function == function) {
             ch.calc_pwm(functions[function].output_scaled);
-            uint16_t last_pwm = hal.rcout->read(ch.ch_num);
+            uint16_t last_pwm = hal.rcout->read_last_sent(ch.ch_num);
             if (last_pwm == ch.output_pwm) {
                 continue;
             }
@@ -783,3 +803,18 @@ void SRV_Channels::upgrade_motors_servo(uint8_t ap_motors_key, uint8_t ap_motors
     }
 }
 
+
+// set RC output frequency on a function output
+void SRV_Channels::set_rc_frequency(SRV_Channel::Aux_servo_function_t function, uint16_t frequency_hz)
+{
+    uint16_t mask = 0;
+    for (uint8_t i=0; i<NUM_SERVO_CHANNELS; i++) {
+        SRV_Channel &ch = channels[i];
+        if (ch.function == function) {
+            mask |= (1U<<ch.ch_num);
+        }
+    }
+    if (mask != 0) {
+        hal.rcout->set_freq(mask, frequency_hz);
+    }
+}

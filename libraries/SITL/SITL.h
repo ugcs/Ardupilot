@@ -16,6 +16,7 @@ struct sitl_fdm {
     double xAccel, yAccel, zAccel;       // m/s/s in body frame
     double rollRate, pitchRate, yawRate; // degrees/s/s in body frame
     double rollDeg, pitchDeg, yawDeg;    // euler angles, degrees
+    Quaternion quaternion;
     double airspeed; // m/s
     double battery_voltage; // Volts
     double battery_current; // Amps
@@ -49,6 +50,7 @@ public:
         GPS_TYPE_SBP   = 6,
         GPS_TYPE_FILE  = 7,
         GPS_TYPE_NOVA  = 8,
+        GPS_TYPE_SBP2   = 9,
     };
 
     struct sitl_fdm state;
@@ -76,6 +78,7 @@ public:
     AP_Vector3f accel2_bias; // in m/s/s
     AP_Float arspd_noise;  // in m/s
     AP_Float arspd_fail;   // pitot tube failure
+    AP_Float gps_noise; // amplitude of the gps altitude error
 
     AP_Float mag_noise;   // in mag units (earth field is 818)
     AP_Float mag_error;   // in degrees
@@ -90,16 +93,16 @@ public:
     AP_Float drift_speed; // degrees/second/minute
     AP_Float drift_time;  // period in minutes
     AP_Float engine_mul;  // engine multiplier
+    AP_Int8  engine_fail; // engine servo to fail (0-7)
     AP_Int8  gps_disable; // disable simulated GPS
     AP_Int8  gps2_enable; // enable 2nd simulated GPS
     AP_Int8  gps_delay;   // delay in samples
     AP_Int8  gps_type;    // see enum GPSType
-    AP_Int8  gps2_type;
-    AP_Float gps2_noise;
+    AP_Int8  gps2_type;   // see enum GPSType
     AP_Float gps_byteloss;// byte loss as a percent
     AP_Int8  gps_numsats; // number of visible satellites
-    AP_Vector3f  gps_glitch;  // glitch offsets in lat, lon and altitude
-    AP_Vector3f  gps2_glitch;
+    AP_Vector3f gps_glitch;  // glitch offsets in lat, lon and altitude
+    AP_Vector3f gps2_glitch; // glitch offsets in lat, lon and altitude for 2nd GPS
     AP_Int8  gps_hertz;   // GPS update rate in Hz
     AP_Float batt_voltage; // battery voltage base
     AP_Float accel_fail;  // accelerometer failure value
@@ -112,7 +115,8 @@ public:
     AP_Int8  terrain_enable; // enable using terrain for height
     AP_Int8  pin_mask; // for GPIO emulation
     AP_Float speedup; // simulation speedup
-
+    AP_Int8  odom_enable; // enable visual odomotry data
+    
     // wind control
     float wind_speed_active;
     float wind_direction_active;
@@ -140,6 +144,8 @@ public:
     AP_Vector3f gps_pos_offset;     // XYZ position of the GPS antenna phase centre relative to the body frame origin (m)
     AP_Vector3f rngfnd_pos_offset;  // XYZ position of the range finder zero range datum relative to the body frame origin (m)
     AP_Vector3f optflow_pos_offset; // XYZ position of the optical flow sensor focal point relative to the body frame origin (m)
+
+    uint16_t irlock_port;
 
     void simstate_send(mavlink_channel_t chan);
 

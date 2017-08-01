@@ -52,7 +52,7 @@ public:
     virtual void ListAvailableLogs(AP_HAL::BetterStream *port) = 0;
 
     void EnableWrites(bool enable) { _writes_enabled = enable; }
-    bool logging_started(void) const { return log_write_started; }
+    virtual bool logging_started(void) const { return log_write_started; }
 
     virtual void Init() {
         _writes_enabled = true;
@@ -139,6 +139,8 @@ protected:
     void _print_log_entry(uint8_t msg_type,
                           print_mode_fn print_mode,
                           AP_HAL::BetterStream *port);
+
+    virtual bool WritesOK() const;
 
     bool _writes_enabled = false;
 

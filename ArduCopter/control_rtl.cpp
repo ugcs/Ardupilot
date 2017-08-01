@@ -11,6 +11,8 @@
 bool Copter::rtl_init(bool ignore_checks)
 {
     if (position_ok() || ignore_checks) {
+        // initialise waypoint and spline controller
+        wp_nav->wp_and_spline_init();
         rtl_build_path(!failsafe.terrain);
         rtl_climb_start();
         return true;
@@ -90,9 +92,6 @@ void Copter::rtl_climb_start()
 {
     rtl_state = RTL_InitialClimb;
     rtl_state_complete = false;
-
-    // initialise waypoint and spline controller
-    wp_nav->wp_and_spline_init();
 
     // RTL_SPEED == 0 means use WPNAV_SPEED
     if (g.rtl_speed_cms != 0) {
@@ -482,7 +481,7 @@ void Copter::rtl_compute_return_target(bool terrain_following_allowed)
     if ((fence.get_enabled_fences() & AC_FENCE_TYPE_ALT_MAX) != 0) {
         // get return target as alt-above-home so it can be compared to fence's alt
         if (rtl_path.return_target.get_alt_cm(Location_Class::ALT_FRAME_ABOVE_HOME, target_alt)) {
-            float fence_alt = fence.get_safe_alt()*100.0f;
+            float fence_alt = fence.get_safe_alt_max()*100.0f;
             if (target_alt > fence_alt) {
                 // reduce target alt to the fence alt
                 rtl_path.return_target.alt -= (target_alt - fence_alt);

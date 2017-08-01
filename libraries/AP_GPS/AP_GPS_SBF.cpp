@@ -21,6 +21,7 @@
 #include "AP_GPS.h"
 #include "AP_GPS_SBF.h"
 #include <DataFlash/DataFlash.h>
+#include <GCS_MAVLink/GCS.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -64,7 +65,8 @@ AP_GPS_SBF::read(void)
 
         if (now > _init_blob_time) {
             port->write((const uint8_t*)init_str, strlen(init_str));
-            _init_blob_time = now + 1000;
+            // if this is too low a race condition on start occurs and the GPS isn't detected
+            _init_blob_time = now + 2000;
         }
     }
 
@@ -87,9 +89,6 @@ AP_GPS_SBF::parse(uint8_t temp)
             if (temp == SBF_PREAMBLE1) {
                 sbf_msg.sbf_state = sbf_msg_parser_t::PREAMBLE2;
                 sbf_msg.read = 0;
-            } else if (temp == '$') {
-                // this is a command response
-                sbf_msg.sbf_state = sbf_msg_parser_t::PREAMBLE2;
             }
             break;
         case sbf_msg_parser_t::PREAMBLE2:
@@ -201,7 +200,7 @@ AP_GPS_SBF::process_message(void)
         log_ExtEventPVTGeodetic(sbf_msg.data.msg4007u);
     }
     // PVTGeodetic
-    if (blockid == 4007) {
+    else if (blockid == 4007) {
         const msg4007 &temp = sbf_msg.data.msg4007u;
 
         // Update time state
@@ -236,9 +235,9 @@ AP_GPS_SBF::process_message(void)
 
         // Update position state (don't use −2·10^10)
         if (temp.Latitude > -200000) {
-            state.location.lat = (int32_t)(temp.Latitude * RAD_TO_DEG_DOUBLE * 1e7);
-            state.location.lng = (int32_t)(temp.Longitude * RAD_TO_DEG_DOUBLE * 1e7);
-            state.location.alt = (int32_t)(((float)temp.Height - temp.Undulation) * 1e2f );
+            state.location.lat = (int32_t)(temp.Latitude * RAD_TO_DEG_DOUBLE * (double)1e7);
+            state.location.lng = (int32_t)(temp.Longitude * RAD_TO_DEG_DOUBLE * (double)1e7);
+            state.location.alt = (int32_t)(((float)temp.Height - temp.Undulation) * 1e2f);
         }
 
         if (temp.NrSV != 255) {
@@ -284,25 +283,33 @@ AP_GPS_SBF::process_message(void)
         return true;
     }
     // DOP
-    if (blockid == 4001) {
+    else if (blockid == 4001) {
         const msg4001 &temp = sbf_msg.data.msg4001u;
 
         last_hdop = temp.HDOP;
 
         state.hdop = last_hdop;
     }
+    // ReceiverStatus
+    else if (blockid == 4014) {
+        const msg4014 &temp = sbf_msg.data.msg4014u;
+        RxState = temp.RxState;
+    }
 
     return false;
 }
 
-void
-AP_GPS_SBF::inject_data(const uint8_t *data, uint16_t len)
+void AP_GPS_SBF::broadcast_configuration_failure_reason(void) const
 {
-
-    if (port->txspace() > len) {
-        last_injected_data_ms = AP_HAL::millis();
-        port->write(data, len);
-    } else {
-        Debug("SBF: Not enough TXSPACE");
+    if (gps._raw_data) {
+        if (!(RxState & SBF_DISK_MOUNTED)){
+            GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_INFO, "GPS %d: SBF disk is not mounted", state.instance + 1);
+        }
+        else if (RxState & SBF_DISK_FULL) {
+            GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_INFO, "GPS %d: SBF disk is full", state.instance + 1);
+        }
+        else if (!(RxState & SBF_DISK_ACTIVITY)) {
+            GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_INFO, "GPS %d: SBF is not currently logging", state.instance + 1);
+        }
     }
 }
