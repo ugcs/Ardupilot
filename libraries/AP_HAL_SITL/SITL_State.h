@@ -31,11 +31,6 @@ class HALSITL::SITL_State {
     friend class HALSITL::Util;
     friend class HALSITL::GPIO;
 public:
-//    SITL_State() :
-//        next_gps_index(0),
-//        next_gps2_index(0)
-//    {}
-
 
     void init(int argc, char * const argv[]);
 

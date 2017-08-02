@@ -1327,8 +1327,10 @@ uint32_t AP_AHRS_NavEKF::getLastPosDownReset(float &posDelta) const
     switch (ekf_type()) {
     case 1:
         return 0;
-    case 2:
+    case EKF_TYPE2:
         return EKF2.getLastPosDownReset(posDelta);
+    case EKF_TYPE3:
+        return EKF3.getLastPosDownReset(posDelta);
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     case EKF_TYPE_SITL:
         return 0;
