@@ -534,6 +534,12 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MAG_MASK", 48, NavEKF2, _magMask, 0),
 
+
+    // @Param: GPS_ALT_THR
+    // @DisplayName: Altitude threshold for gps checks. ( minimum GPS status to switch from gps altitude  to baro mesurments
+    // @Description: Numeric condition for gps checks, which determince when ekf starts using gps as altitude source before it dropes to barometer
+    // @User: Advanced
+    AP_GROUPINFO("GPS_ALT_THR", 49, NavEKF2, _gps_alt_threshold, AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FLOAT),
     AP_GROUPEND
 };
 
@@ -1276,7 +1282,8 @@ uint32_t NavEKF2::getLastYawResetAngle(float &yawAngDelta)
     float temp_yawAng;
     uint32_t lastCoreYawReset_ms = core[primary].getLastYawResetAngle(temp_yawAng);
     if (lastCoreYawReset_ms > lastYawReset_ms) {
-        yawAngDelta = wrap_PI(yawAngDelta + temp_yawAng);
+        //yawAngDelta = wrap_PI(yawAngDelta + temp_yawAng);
+        yaw_reset_data.core_delta = wrap_PI(yawAngDelta + temp_yawAng);
         lastYawReset_ms = lastCoreYawReset_ms;
     }
 
