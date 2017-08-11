@@ -794,7 +794,7 @@ void NavEKF2_core::selectHeightForFusion()
             }
         }
     } else if ((frontend->_altSource == 2) && ((imuSampleTime_ms - lastTimeGpsReceived_ms) < 500) && validOrigin && gpsAccuracyGood
-               && _ahrs->get_gps().status(gpsDataDelayed.sensor_idx) == AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FIXED
+               && _ahrs->get_gps().status(gpsDataDelayed.sensor_idx) >= AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FLOAT
                ) {
 
         activeHgtSource = HGT_SOURCE_GPS;
