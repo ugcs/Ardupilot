@@ -35,6 +35,19 @@ NOINLINE void Copter::send_heartbeat(mavlink_channel_t chan)
         system_status = MAV_STATE_CRITICAL;
     }
 
+    nav_gps_status faults;
+
+    EKF2.getFilterGpsStatus(-1, faults);
+
+    if (faults.flags.bad_sAcc || faults.flags.bad_hAcc || faults.flags.bad_vAcc ||
+            faults.flags.bad_yaw|| faults.flags.bad_sats || faults.flags.bad_VZ ||
+            faults.flags.bad_horiz_drift || faults.flags.bad_hdop  || faults.flags.bad_vert_vel ||
+            faults.flags.bad_fix || faults.flags.bad_horiz_vel) {
+
+        system_status = MAV_STATE_CALIBRATING;
+    }
+
+
     // work out the base_mode. This value is not very useful
     // for APM, but we calculate it as best we can so a generic
     // MAVLink enabled ground station can work out something about
