@@ -30,13 +30,7 @@ NOINLINE void Copter::send_heartbeat(mavlink_channel_t chan)
     uint8_t system_status = ap.land_complete ? MAV_STATE_STANDBY : MAV_STATE_ACTIVE;
     uint32_t custom_mode = control_mode;
 
-    // set system as critical if any failsafe have triggered
-    if (failsafe.radio || failsafe.battery || failsafe.gcs || failsafe.ekf || failsafe.terrain || failsafe.adsb)  {
-        system_status = MAV_STATE_CRITICAL;
-    }
-
     nav_gps_status faults;
-
     EKF2.getFilterGpsStatus(-1, faults);
 
     if (faults.flags.bad_sAcc || faults.flags.bad_hAcc || faults.flags.bad_vAcc ||
@@ -47,6 +41,10 @@ NOINLINE void Copter::send_heartbeat(mavlink_channel_t chan)
         system_status = MAV_STATE_CALIBRATING;
     }
 
+    // set system as critical if any failsafe have triggered
+    if (failsafe.radio || failsafe.battery || failsafe.gcs || failsafe.ekf || failsafe.terrain || failsafe.adsb)  {
+        system_status = MAV_STATE_CRITICAL;
+    }
 
     // work out the base_mode. This value is not very useful
     // for APM, but we calculate it as best we can so a generic
