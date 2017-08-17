@@ -43,22 +43,6 @@ bool NavEKF2_core::calcGpsGoodToAlign(void)
         magYawResetTimer_ms = imuSampleTime_ms;
     }
 
-    // Status check.
-    /**
-    AP_GPS gps = _ahrs->get_gps();
-    if (gps.num_sensors() > 1) { // If we have a referenced (more accurate GPS) wait for its highest status.
-        uint8_t reference_instance = gps._referenced_instance;
-
-        if (reference_instance > 0
-                && reference_instance <= gps.num_sensors()
-                && gps.status(reference_instance - 1) < gps.highest_supported_status(reference_instance - 1)) {
-            return false;
-        }
-    } else if (gps.status() < gps.highest_supported_status()) {
-        return false;
-    }
-    **/
-
     // Check for significant change in GPS position if disarmed which indicates bad GPS
     // This check can only be used when the vehicle is stationary
     const struct Location &gpsloc = _ahrs->get_gps().location(); // Current location
@@ -112,7 +96,7 @@ bool NavEKF2_core::calcGpsGoodToAlign(void)
     if (gpsVertVelFail) {
         hal.util->snprintf(prearm_fail_string,
                            sizeof(prearm_fail_string),
-                           "GPS vertical speed %.2fm/s (needs %.2f)", (double)fabsf(gpsVertVelFilt), (double)(0.3f*checkScaler));
+                           "GPS vertical speed %.4fm/s (needs %.4f)", (double)fabsf(gpsVertVelFilt), (double)(0.3f*checkScaler));
         gpsCheckStatus.bad_vert_vel = true;
     } else {
         gpsCheckStatus.bad_vert_vel = false;
@@ -133,7 +117,7 @@ bool NavEKF2_core::calcGpsGoodToAlign(void)
     if (gpsHorizVelFail) {
         hal.util->snprintf(prearm_fail_string,
                            sizeof(prearm_fail_string),
-                           "GPS horizontal speed %.2fm/s (needs %.2f)", (double)gpsDriftNE, (double)(0.3f*checkScaler));
+                           "GPS horizontal speed %.4fm/s (needs %.4f)", (double)gpsDriftNE, (double)(0.3f*checkScaler));
         gpsCheckStatus.bad_horiz_vel = true;
     } else {
         gpsCheckStatus.bad_horiz_vel = false;
@@ -152,7 +136,7 @@ bool NavEKF2_core::calcGpsGoodToAlign(void)
     if (hAccFail) {
         hal.util->snprintf(prearm_fail_string,
                            sizeof(prearm_fail_string),
-                           "GPS horiz error %.1fm (needs %.1f)", (double)hAcc, (double)(5.0f*checkScaler));
+                           "GPS horiz error %.2fm (needs %.2f)", (double)hAcc, (double)(5.0f*checkScaler));
         gpsCheckStatus.bad_hAcc = true;
     } else {
         gpsCheckStatus.bad_hAcc = false;
@@ -168,7 +152,7 @@ bool NavEKF2_core::calcGpsGoodToAlign(void)
     if (vAccFail) {
         hal.util->snprintf(prearm_fail_string,
                            sizeof(prearm_fail_string),
-                           "GPS vert error %.1fm (needs < %.1f)", (double)vAcc, (double)(7.5f * checkScaler));
+                           "GPS vert error %.2fm (needs < %.2f)", (double)vAcc, (double)(7.5f * checkScaler));
         gpsCheckStatus.bad_vAcc = true;
     } else {
         gpsCheckStatus.bad_vAcc = false;
@@ -181,7 +165,7 @@ bool NavEKF2_core::calcGpsGoodToAlign(void)
     if (gpsSpdAccFail) {
         hal.util->snprintf(prearm_fail_string,
                            sizeof(prearm_fail_string),
-                           "GPS speed error %.1f (needs %.1f)", (double)gpsSpdAccuracy, (double)(1.0f*checkScaler));
+                           "GPS speed error %.2f (needs %.2f)", (double)gpsSpdAccuracy, (double)(1.0f*checkScaler));
         gpsCheckStatus.bad_sAcc = true;
     } else {
         gpsCheckStatus.bad_sAcc = false;

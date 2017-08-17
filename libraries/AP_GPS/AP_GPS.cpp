@@ -252,6 +252,8 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("BLEND_TC", 21, AP_GPS, _blend_tc, 10.0f),
 
+     AP_GROUPINFO("PREFERED", 22, AP_GPS, _prefered_sensor, 1),
+
     AP_GROUPEND
 };
 
@@ -1281,7 +1283,6 @@ void AP_GPS::calc_blended_state(void)
 
         // calculate a blended average velocity
         state[GPS_BLENDED_INSTANCE].velocity += state[i].velocity * _blend_weights[i];
-
         // report the best valid accuracies and DOP metrics
 
         if (state[i].have_horizontal_accuracy && state[i].horizontal_accuracy > 0.0f && state[i].horizontal_accuracy < state[GPS_BLENDED_INSTANCE].horizontal_accuracy) {
@@ -1330,6 +1331,7 @@ void AP_GPS::calc_blended_state(void)
 
     }
 
+
     /*
      * Calculate an instantaneous weighted/blended average location from the available GPS instances and store in the _output_state.
      * This will be statisticaly the most likely location, but will be not stable enough for direct use by the autopilot.
@@ -1346,71 +1348,99 @@ void AP_GPS::calc_blended_state(void)
         }
     }
 
-    // Calculate the weighted sum of horizontal and vertical position offsets relative to the reference position
-    Vector2f blended_NE_offset_m;
-    float blended_alt_offset_cm = 0.0f;
-    blended_NE_offset_m.zero();
-    for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
-        if (_blend_weights[i] > 0.0f && i != best_index) {
-            blended_NE_offset_m += location_diff(state[GPS_BLENDED_INSTANCE].location, state[i].location) * _blend_weights[i];
-            blended_alt_offset_cm += (float)(state[i].location.alt - state[GPS_BLENDED_INSTANCE].location.alt) * _blend_weights[i];
-        }
+    if (_last_best_index != best_index) {
+        GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_INFO, "GPS switched from %d(%f) to %d(%f)",
+                                         _last_best_index, _blend_weights[_last_best_index], best_index, _blend_weights[best_index]);
+        _last_best_index = best_index;
     }
 
-    // Add the sum of weighted offsets to the reference location to obtain the blended location
-    location_offset(state[GPS_BLENDED_INSTANCE].location, blended_NE_offset_m.x, blended_NE_offset_m.y);
-    state[GPS_BLENDED_INSTANCE].location.alt += (int)blended_alt_offset_cm;
+    if (_prefered_sensor > 0 && _prefered_sensor <= GPS_MAX_RECEIVERS) {
 
-    // Calculate ground speed and course from blended velocity vector
-    state[GPS_BLENDED_INSTANCE].ground_speed = norm(state[GPS_BLENDED_INSTANCE].velocity.x, state[GPS_BLENDED_INSTANCE].velocity.y);
-    state[GPS_BLENDED_INSTANCE].ground_course = wrap_360(degrees(atan2f(state[GPS_BLENDED_INSTANCE].velocity.y, state[GPS_BLENDED_INSTANCE].velocity.x)));
+        if (best_index != _prefered_sensor - 1) {
+            location_offset(state[GPS_BLENDED_INSTANCE].location, _NE_pos_offset_m[best_index].x, _NE_pos_offset_m[best_index].y);
+            state[GPS_BLENDED_INSTANCE].location.alt += (int)(_hgt_offset_cm[best_index]);
+        }
 
-    /*
-     * The blended location in _output_state.location is not stable enough to be used by the autopilot
-     * as it will move around as the relative accuracy changes. To mitigate this effect a low-pass filtered
-     * offset from each GPS location to the blended location is calculated and the filtered offset is applied
-     * to each receiver.
-    */
-
-    // Calculate filter coefficients to be applied to the offsets for each GPS position and height offset
-    // A weighting of 1 will make the offset adjust the slowest, a weighting of 0 will make it adjust with zero filtering
-    float alpha[GPS_MAX_RECEIVERS] = {};
-    for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
-        if (state[i].last_gps_time_ms - _last_time_updated[i] > 0) {
-            float min_alpha = constrain_float(_omega_lpf * 0.001f * (float)(state[i].last_gps_time_ms - _last_time_updated[i]), 0.0f, 1.0f);
-            if (_blend_weights[i] > min_alpha) {
-                alpha[i] = min_alpha / _blend_weights[i];
-            } else {
-                alpha[i] = 1.0f;
+        // Calculate the offset from each GPS solution to the blended solution
+        for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
+            if ( i == _prefered_sensor - 1) {
+                // Offsets are 0
+                _NE_pos_offset_m[i].zero();
             }
-            _last_time_updated[i] = state[i].last_gps_time_ms;
+            if (i != best_index) {
+                _NE_pos_offset_m[i] = location_diff(state[i].location, state[GPS_BLENDED_INSTANCE].location);
+                _hgt_offset_cm[i] = (float)(state[GPS_BLENDED_INSTANCE].location.alt - state[i].location.alt);
+            }
         }
-    }
 
-    // Calculate the offset from each GPS solution to the blended solution
-    for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
-        _NE_pos_offset_m[i] = location_diff(state[i].location, state[GPS_BLENDED_INSTANCE].location) * alpha[i] + _NE_pos_offset_m[i] * (1.0f - alpha[i]);
-        _hgt_offset_cm[i] = (float)(state[GPS_BLENDED_INSTANCE].location.alt - state[i].location.alt) *  alpha[i] + _hgt_offset_cm[i] * (1.0f - alpha[i]);
-    }
-
-    // Calculate a corrected location for each GPS
-    Location corrected_location[GPS_MAX_RECEIVERS];
-    for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
-        corrected_location[i] = state[i].location;
-        location_offset(corrected_location[i], _NE_pos_offset_m[i].x, _NE_pos_offset_m[i].y);
-        corrected_location[i].alt += (int)(_hgt_offset_cm[i]);
-    }
-
-    // Calculate the weighted sum of horizontal and vertical position offsets relative to the blended location
-    blended_alt_offset_cm = 0.0f;
-    blended_NE_offset_m.zero();
-    for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
-        if (_blend_weights[i] > 0.0f) {
-            blended_NE_offset_m += location_diff(state[GPS_BLENDED_INSTANCE].location, corrected_location[i]) * _blend_weights[i];
-            blended_alt_offset_cm += (float)(corrected_location[i].alt - state[GPS_BLENDED_INSTANCE].location.alt) * _blend_weights[i];
+    } else {
+        // Calculate the weighted sum of horizontal and vertical position offsets relative to the reference position
+        Vector2f blended_NE_offset_m;
+        float blended_alt_offset_cm = 0.0f;
+        blended_NE_offset_m.zero();
+        for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
+            if (_blend_weights[i] > 0.0f && i != best_index) {
+                blended_NE_offset_m += location_diff(state[GPS_BLENDED_INSTANCE].location, state[i].location) * _blend_weights[i];
+                blended_alt_offset_cm += (float)(state[i].location.alt - state[GPS_BLENDED_INSTANCE].location.alt) * _blend_weights[i];
+            }
         }
-    }
 
+        // Add the sum of weighted offsets to the reference location to obtain the blended location
+        location_offset(state[GPS_BLENDED_INSTANCE].location, blended_NE_offset_m.x, blended_NE_offset_m.y);
+        state[GPS_BLENDED_INSTANCE].location.alt += (int)blended_alt_offset_cm;
+
+        // Calculate ground speed and course from blended velocity vector
+        state[GPS_BLENDED_INSTANCE].ground_speed = norm(state[GPS_BLENDED_INSTANCE].velocity.x, state[GPS_BLENDED_INSTANCE].velocity.y);
+        state[GPS_BLENDED_INSTANCE].ground_course = wrap_360(degrees(atan2f(state[GPS_BLENDED_INSTANCE].velocity.y, state[GPS_BLENDED_INSTANCE].velocity.x)));
+        /*
+         * The blended location in _output_state.location is not stable enough to be used by the autopilot
+         * as it will move around as the relative accuracy changes. To mitigate this effect a low-pass filtered
+         * offset from each GPS location to the blended location is calculated and the filtered offset is applied
+         * to each receiver.
+        */
+
+        // Calculate filter coefficients to be applied to the offsets for each GPS position and height offset
+        // A weighting of 1 will make the offset adjust the slowest, a weighting of 0 will make it adjust with zero filtering
+        float alpha[GPS_MAX_RECEIVERS] = {};
+        for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
+            if (state[i].last_gps_time_ms - _last_time_updated[i] > 0) {
+                float min_alpha = constrain_float(_omega_lpf * 0.001f * (float)(state[i].last_gps_time_ms - _last_time_updated[i]), 0.0f, 1.0f);
+                if (_blend_weights[i] > min_alpha) {
+                    alpha[i] = min_alpha / _blend_weights[i];
+                } else {
+                    alpha[i] = 1.0f;
+                }
+                _last_time_updated[i] = state[i].last_gps_time_ms;
+            }
+        }
+
+        // Calculate the offset from each GPS solution to the blended solution
+        for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
+                _NE_pos_offset_m[i] = location_diff(state[i].location, state[GPS_BLENDED_INSTANCE].location) * alpha[i] + _NE_pos_offset_m[i] * (1.0f - alpha[i]);
+                _hgt_offset_cm[i] = (float)(state[GPS_BLENDED_INSTANCE].location.alt - state[i].location.alt) *  alpha[i] + _hgt_offset_cm[i] * (1.0f - alpha[i]);
+        }
+
+        // Calculate a corrected location for each GPS
+        Location corrected_location[GPS_MAX_RECEIVERS];
+        for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
+            corrected_location[i] = state[i].location;
+            location_offset(corrected_location[i], _NE_pos_offset_m[i].x, _NE_pos_offset_m[i].y);
+            corrected_location[i].alt += (int)(_hgt_offset_cm[i]);
+        }
+
+        // Calculate the weighted sum of horizontal and vertical position offsets relative to the blended location
+        blended_alt_offset_cm = 0.0f;
+        blended_NE_offset_m.zero();
+        for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
+            if (_blend_weights[i] > 0.0f) {
+                blended_NE_offset_m += location_diff(state[GPS_BLENDED_INSTANCE].location, corrected_location[i]) * _blend_weights[i];
+                blended_alt_offset_cm += (float)(corrected_location[i].alt - state[GPS_BLENDED_INSTANCE].location.alt) * _blend_weights[i];
+            }
+        }
+
+        location_offset(state[GPS_BLENDED_INSTANCE].location, blended_NE_offset_m.x, blended_NE_offset_m.y);
+        state[GPS_BLENDED_INSTANCE].location.alt += (int)blended_alt_offset_cm;
+    }
     // If the GPS week is the same then use a blended time_week_ms
     // If week is different, then use time stamp from GPS with largest weighting
     // detect inconsistent week data

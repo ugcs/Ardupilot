@@ -716,7 +716,7 @@ private:
     void updateTimingStatistics(void);
 
     // If gps data is good enough for altiltude mesure
-    bool isGpsGoodForAltitude(uint8_t gps_index);
+    bool isGpsGoodForAltitude(uint8_t);
     
     // Length of FIFO buffers used for non-IMU sensor data.
     // Must be larger than the time period defined by IMU_BUFFER_LENGTH

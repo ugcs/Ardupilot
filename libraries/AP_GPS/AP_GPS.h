@@ -141,6 +141,8 @@ public:
         bool have_horizontal_accuracy:1;    ///< does GPS give horizontal position accuracy? Set to true only once available.
         bool have_vertical_accuracy:1;      ///< does GPS give vertical position accuracy? Set to true only once available.
         uint32_t last_gps_time_ms;          ///< the system time we got the last GPS timestamp, milliseconds
+        Vector3f offset_to_prefered;            ///< offset to gps posiotion, considered as primary
+
     };
 
     /// Startup initialisation.
@@ -389,6 +391,7 @@ protected:
     AP_Int16 _delay_ms[GPS_MAX_RECEIVERS];
     AP_Int8 _blend_mask;
     AP_Float _blend_tc;
+    AP_Int8  _prefered_sensor;
 
 private:
     // return gps update rate in milliseconds
@@ -476,6 +479,7 @@ private:
     float _omega_lpf; // cutoff frequency in rad/sec of LPF applied to position offsets
     bool _output_is_blended; // true when a blended GPS solution being output
     uint8_t _blend_health_counter;  // 0 = perfectly health, 100 = very unhealthy
+    uint8_t _last_best_index; // Last best sensor index
 
     // calculate the blend weight.  Returns true if blend could be calculated, false if not
     bool calc_blend_weights(void);

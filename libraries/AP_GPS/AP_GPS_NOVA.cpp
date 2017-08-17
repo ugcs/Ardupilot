@@ -203,7 +203,7 @@ AP_GPS_NOVA::process_message(void)
         state.num_sats = bestposu.svsused;
 
         state.horizontal_accuracy = (float) ((bestposu.latsdev + bestposu.lngsdev)/2);
-        state.vertical_accuracy = (float) bestposu.hgtsdev;
+        state.vertical_accuracy = (float) bestposu.hgtsdev + 0.0001f;
         state.have_horizontal_accuracy = true;
         state.have_vertical_accuracy = true;
 
