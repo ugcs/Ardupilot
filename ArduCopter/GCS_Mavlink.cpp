@@ -30,14 +30,8 @@ NOINLINE void Copter::send_heartbeat(mavlink_channel_t chan)
     uint8_t system_status = ap.land_complete ? MAV_STATE_STANDBY : MAV_STATE_ACTIVE;
     uint32_t custom_mode = control_mode;
 
-    nav_gps_status faults;
-    EKF2.getFilterGpsStatus(-1, faults);
 
-    if (faults.flags.bad_sAcc || faults.flags.bad_hAcc || faults.flags.bad_vAcc ||
-            faults.flags.bad_yaw|| faults.flags.bad_sats || faults.flags.bad_VZ ||
-            faults.flags.bad_horiz_drift || faults.flags.bad_hdop  || faults.flags.bad_vert_vel ||
-            faults.flags.bad_fix || faults.flags.bad_horiz_vel) {
-
+    if (!copter.ap.pre_arm_check) {
         system_status = MAV_STATE_CALIBRATING;
     }
 
