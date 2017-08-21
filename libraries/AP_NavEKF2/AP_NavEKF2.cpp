@@ -1282,8 +1282,7 @@ uint32_t NavEKF2::getLastYawResetAngle(float &yawAngDelta)
     float temp_yawAng;
     uint32_t lastCoreYawReset_ms = core[primary].getLastYawResetAngle(temp_yawAng);
     if (lastCoreYawReset_ms > lastYawReset_ms) {
-        //yawAngDelta = wrap_PI(yawAngDelta + temp_yawAng);
-        yaw_reset_data.core_delta = wrap_PI(yawAngDelta + temp_yawAng);
+        yawAngDelta = wrap_PI(yawAngDelta + temp_yawAng);
         lastYawReset_ms = lastCoreYawReset_ms;
     }
 
